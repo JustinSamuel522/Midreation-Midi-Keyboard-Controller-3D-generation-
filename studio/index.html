@@ -39,19 +39,19 @@ main{max-width:1560px;margin:auto;padding:25px 24px 42px;display:grid;grid-templ
    <h2 class="step-title">What are we creating?</h2><p class="step-intro">Choose the kind of MIDI instrument you'd like to customize.</p>
    <div class="type-stack">
     <button class="type-choice selected" data-type="board"><span class="type-icon">▤</span><span><span class="name">Desktop MIDI controller</span><div class="detail">Knobs, faders, pads, and buttons</div></span><span class="choice-mark"></span></button>
-    <button class="type-choice" data-type="keyboard-synth"><span class="type-icon">▥</span><span><span class="name">MIDI keyboard or synthesizer</span><div class="detail">Piano keys plus your choice of controls</div></span><span class="choice-mark"></span></button>
+    <button class="type-choice" data-type="keyboard-synth"><span class="type-icon">▥</span><span><span class="name">MIDI keyboard or synthesizer</span><div class="detail">Choice of keycap profiles plus your favorite controls</div></span><span class="choice-mark"></span></button>
     <button class="type-choice" data-type="foot"><span class="type-icon">◎</span><span><span class="name">MIDI foot controller</span><div class="detail">Footswitches and hands-free controls</div></span><span class="choice-mark"></span></button>
    </div>
    <div class="conditional" id="keyboardFields" hidden>
-    <div class="field-row"><div class="field"><label for="keys">How many piano keys?</label><select class="select" id="keys"><option>25</option><option>37</option><option>49</option><option selected>61</option><option>73</option><option>76</option><option>88</option></select></div><div class="field"><label for="keyAction">Keybed feel</label><select class="select" id="keyAction"><option value="synth">Synth action</option><option value="semi-weighted" selected>Semi-weighted</option><option value="weighted">Weighted</option><option value="hammer">Hammer action</option></select></div></div>
+    <div class="field-row"><div class="field"><label for="keys">How many piano keys?</label><select class="select" id="keys"><option>25</option><option>37</option><option>49</option><option selected>61</option><option>73</option><option>76</option><option>88</option></select></div><div class="field"><label for="keyAction">Keybed feel</label><select class="select" id="keyAction"><option value="unweighted">Unweighted / synth — waterfall front</option><option value="semi-weighted" selected>Semi-weighted — piano-style lip</option><option value="weighted">Weighted — deeper piano lip</option><option value="hammer">Hammer action — piano-style</option></select></div></div>
     <p class="small muted" style="margin-top:9px">Keybed action is stored as a design parameter; physical key mechanics are not simulated yet.</p>
    </div>
   </div>
   <div class="step-screen" id="step-2">
-   <h2 class="step-title">Choose your controls</h2><p class="step-intro">Set a quantity and preferred area. Choose “Auto” and we'll decide where they fit best.</p>
+   <h2 class="step-title">Choose your controls</h2><p class="step-intro">Set a quantity and preferred area. Choose “Auto” for intelligent alignment, or pick a row, column, or grid.</p>
    <div id="primaryControls" class="controls-grid"></div>
    <details class="more-controls"><summary>More components (switches, screens, LEDs...)</summary><div id="extraControls" class="controls-grid"></div></details>
-   <div class="tiny-note">Position requests are preferences. The generator may shift a group to prevent overlaps, and will tell you when it does.</div>
+   <div class="tiny-note"><strong>Tip:</strong> Give knobs and faders the same count and zone (such as Center) to create paired, left-to-right channel strips. Groups move as a unit when space is tight.</div>
   </div>
   <div class="step-screen" id="step-3">
    <h2 class="step-title">Pick your finish</h2><p class="step-intro">Choose a chassis color and how many layouts you'd like to explore.</p>
@@ -74,7 +74,7 @@ main{max-width:1560px;margin:auto;padding:25px 24px 42px;display:grid;grid-templ
   <div class="model-footer"><span class="small muted"><strong>Layouts</strong></span><div id="variants" class="variant-buttons"></div><div class="downloads"><a id="obj" class="disabled" href="#" download>3D OBJ</a><a id="svg" class="disabled" href="#" download>2D SVG</a><a id="json" class="disabled" href="#" download>Design JSON</a></div></div>
   <div class="model-metrics"><span>Size: <strong id="dims">—</strong></span><span>3D parts: <strong id="parts">—</strong></span><span>Triangles: <strong id="triangles">—</strong></span><span>Powered by: <strong>C++ procedural engine</strong></span></div>
  </div>
- <div class="bottom-note"><strong>Built to be personalized, not selected from presets.</strong><p>Midreation converts your answers into a text grammar, validates component placement, generates geometry, and offers alternative layouts. The interface is a prototype: realistic material textures, drag-and-drop placement, and manufacturing export are future features.</p></div>
+ <div class="bottom-note"><strong>Built to be personalized, not selected from presets.</strong><p>Midreation converts your answers into a text grammar, validates component placement, generates geometry, and offers alternative layouts. The interface is a prototype: real material shaders, drag-and-drop placement, and manufacturing export are future features.</p></div>
 </section>
 </main>
 <script>
@@ -110,14 +110,31 @@ function createControls(){
   const input=document.createElement('input');input.type='number';input.id='count-'+c.id;input.min='0';input.max=String(c.max);input.step='1';input.value='0';input.addEventListener('input',syncGrammar);f1.append(l1,input);
   const f2=document.createElement('div');f2.className='field';const l2=document.createElement('label');l2.htmlFor='zone-'+c.id;l2.textContent='Preferred position';
   const sel=document.createElement('select');sel.id='zone-'+c.id;sel.className='select';for(const [value,name] of zones){const option=document.createElement('option');option.value=value;option.textContent=name;sel.append(option);}sel.addEventListener('change',syncGrammar);f2.append(l2,sel);
-  card.append(f1,f2);$(c.group==='primary'?'primaryControls':'extraControls').append(card);
+  card.append(f1,f2);
+  if(['knobs','faders','buttons','clicky','pads','switches','footswitches'].includes(c.id)){
+   const f3=document.createElement('div');f3.className='field';const l3=document.createElement('label');l3.htmlFor='layout-'+c.id;l3.textContent='Arrangement';
+   const layout=document.createElement('select');layout.id='layout-'+c.id;layout.className='select';
+   for(const [value,label] of [['auto','Auto — neatly grouped'],['row','Single horizontal row'],['column','Vertical column'],['grid','Compact grid']]){
+    const opt=document.createElement('option');opt.value=value;opt.textContent=label;layout.append(opt);
+   }
+   layout.addEventListener('change',syncGrammar);f3.append(l3,layout);card.append(f3);
+  }
+  if(['knobs','faders','pads'].includes(c.id)){
+   const f4=document.createElement('div');f4.className='field';const l4=document.createElement('label');l4.htmlFor='spacing-'+c.id;l4.textContent='Spacing';
+   const spacing=document.createElement('select');spacing.id='spacing-'+c.id;spacing.className='select';
+   for(const [value,label] of [['','Balanced'],['4','Tight'],['12','Comfortable'],['20','Spacious']]){
+    const opt=document.createElement('option');opt.value=value;opt.textContent=label;spacing.append(opt);
+   }
+   spacing.addEventListener('change',syncGrammar);f4.append(l4,spacing);card.append(f4);
+  }
+  $(c.group==='primary'?'primaryControls':'extraControls').append(card);
  }
 }
 function setProfile(type){
  selectedType=type;
  for(const b of document.querySelectorAll('[data-type]')){const active=b.dataset.type===type;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',active?'true':'false');}
  $('keyboardFields').hidden=type!=='keyboard-synth';
- for(const c of controls){$('count-'+c.id).value=profiles[type][c.id]||0;$('zone-'+c.id).value='auto';}
+ for(const c of controls){$('count-'+c.id).value=profiles[type][c.id]||0;$('zone-'+c.id).value='auto';if($('layout-'+c.id))$('layout-'+c.id).value='auto';if($('spacing-'+c.id))$('spacing-'+c.id).value='';}
  if(type==='keyboard-synth'){$('zone-knobs').value='top-left';$('zone-pads').value='right';$('zone-displays').value='center';$('zone-faders').value='left';}
  if(type==='foot'){$('zone-footswitches').value='bottom';$('zone-displays').value='top';$('primaryControls').prepend($('count-footswitches').closest('.control-card'));}else{$('extraControls').prepend($('count-footswitches').closest('.control-card'));}
  $('pitch').checked=type==='keyboard-synth';$('mod').checked=type==='keyboard-synth';
@@ -134,6 +151,8 @@ function buildSpec(){
    else if(c.id==='clicky')cmd+=` clicky=${value}`;
    else cmd+=` count=${value}`;
    cmd+=` zone=${$('zone-'+c.id).value}`;
+   if($('layout-'+c.id)&&$('layout-'+c.id).value!=='auto')cmd+=` layout=${$('layout-'+c.id).value}`;
+   if($('spacing-'+c.id)&&$('spacing-'+c.id).value)cmd+=` spacing=${$('spacing-'+c.id).value}`;
    if(c.id==='displays')cmd+=` size=medium`;
    lines.push(cmd);
  }
@@ -167,9 +186,9 @@ function show(index){
  active=index;const r=results[index],m=r.model;
  for(const [i,b] of Array.from($('variants').children).entries())b.classList.toggle('selected',index===i);
  $('dims').textContent=`${Math.round(m.width)} × ${Math.round(m.depth)} mm`;$('parts').textContent=m.parts.length.toLocaleString();$('triangles').textContent=m.triangles.toLocaleString();
- $('modelInfo').replaceChildren();const name=document.createElement('strong');name.textContent=`Layout ${index+1} · ${m.kind}`;const details=document.createElement('div');details.textContent=`${Math.round(m.width)} × ${Math.round(m.depth)} mm · ${m.parts.length} parts`;$('modelInfo').append(name,details);
+ $('modelInfo').replaceChildren();const name=document.createElement('strong');name.textContent=`Layout ${index+1} · ${m.kind}`;const details=document.createElement('div');details.textContent=`${Math.round(m.width)} × ${Math.round(m.depth)} mm · ${m.parts.length} parts`+(m.keycapProfile&&m.parts.some(p=>p.type==='white_key')?` · ${m.keycapProfile==='waterfall'?'Waterfall synth keys':m.keycapProfile==='weighted'?'Deep piano-lip keys':'Piano-lip keys'}`:'');$('modelInfo').append(name,details);
  for(const ext of ['obj','svg','json']){$(ext).href=r[ext];$(ext).classList.remove('disabled');}
- $('svgView').src=r.svg;viewer.load(m);if(mode==='2d')$('svgView').style.display='block';if(Array.isArray(m.warnings)&&m.warnings.length)$('status').textContent='Placement notes: '+m.warnings.join(' ');
+ $('svgView').src=r.svg;viewer.load(m,r.obj).catch(err=>{$('status').classList.add('error');$('status').textContent='3D preview: '+err.message+' (OBJ export is still available).';});if(mode==='2d')$('svgView').style.display='block';if(Array.isArray(m.warnings)&&m.warnings.length)$('status').textContent='Placement notes: '+m.warnings.join(' ');
 }
 createControls();createPalette();setProfile('board');gotoStep(1);
 for(const b of document.querySelectorAll('[data-type]'))b.onclick=()=>setProfile(b.dataset.type);
@@ -179,8 +198,19 @@ for(const id of ['keys','keyAction','width','depth','pitch','mod'])$(id).addEven
 $('useCustom').onchange=()=>{if(!$('useCustom').checked)syncGrammar();else $('advanced').open=true;};
 $('mode3d').onclick=()=>setMode('3d');$('mode2d').onclick=()=>setMode('2d');$('resetCam').onclick=()=>{viewer.reset();viewer.draw();};
 // WebGL preview: reads the same geometry metadata produced by the C++ engine.
-const vshader=`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor; uniform mat4 uMVP; varying vec3 vColor; varying float vLight; void main(){gl_Position=uMVP*vec4(aPos,1.0);vColor=aColor;vec3 n=normalize(aNormal);vLight=0.68+max(dot(n,normalize(vec3(-0.4,0.9,0.65))),0.0)*0.29;}`;
-const fshader=`precision mediump float; varying vec3 vColor; varying float vLight; void main(){gl_FragColor=vec4(vColor*vLight,1.0);}`;
+// Soft showroom lighting: hemisphere fill, two directional lights, and a
+// restrained specular highlight so chamfers read as rounded physical parts.
+const vshader=`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor; uniform mat4 uMVP; varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition; void main(){gl_Position=uMVP*vec4(aPos,1.0);vColor=aColor;vNormal=normalize(aNormal);vPosition=aPos;}`;
+const fshader=`precision highp float; varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition; uniform vec3 uEye;
+void main(){
+ vec3 n=normalize(vNormal);
+ vec3 key=normalize(vec3(-0.40,0.85,0.55));
+ vec3 fill=normalize(vec3(0.7,0.35,-0.4));
+ float light=0.46+0.14*max(n.y,0.0)+0.50*max(dot(n,key),0.0)+0.14*max(dot(n,fill),0.0);
+ vec3 h=normalize(key+normalize(uEye-vPosition));
+ float glint=0.18*pow(max(dot(n,h),0.0),36.0);
+ gl_FragColor=vec4(clamp(vColor*light+vec3(glint),0.0,1.0),1.0);
+}`;
 function mul(a,b){const o=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[i+4*j]+=a[i+4*k]*b[k+4*j];return o;}
 function persp(fov,asp,near,far){let f=1/Math.tan(fov/2),a=new Float32Array(16);a[0]=f/asp;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a;}
 function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
@@ -188,37 +218,58 @@ function normalize(a){const l=Math.hypot(...a)||1;return a.map(v=>v/l);}
 function lookAt(eye,center,up){const z=normalize(eye.map((v,i)=>v-center[i])),x=normalize(cross(up,z)),y=cross(z,x);return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-x.reduce((v,a,i)=>v+a*eye[i],0),-y.reduce((v,a,i)=>v+a*eye[i],0),-z.reduce((v,a,i)=>v+a*eye[i],0),1]);}
 function rgb(hex){if(!/^#[0-9a-f]{6}$/i.test(hex))return[.5,.6,.7];return[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);}
 class Renderer{
- constructor(canvas){this.canvas=canvas;this.gl=canvas.getContext('webgl',{antialias:true,alpha:false});this.theta=-.6;this.phi=.8;this.radius=800;this.width=420;this.depth=240;this.vertexCount=0;
+ constructor(canvas){this.canvas=canvas;this.gl=canvas.getContext('webgl',{antialias:true,alpha:false});this.theta=-.6;this.phi=.8;this.radius=800;this.width=420;this.depth=240;this.vertexCount=0;this.loadToken=0;
    if(!this.gl){$('mode3d').disabled=true;setMode('2d');return;}
    const gl=this.gl;
    const shader=(type,src)=>{let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;};
    const prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vshader));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,fshader));gl.linkProgram(prog);gl.useProgram(prog);this.prog=prog;
-   this.pos=gl.getAttribLocation(prog,'aPos');this.normal=gl.getAttribLocation(prog,'aNormal');this.color=gl.getAttribLocation(prog,'aColor');this.mvp=gl.getUniformLocation(prog,'uMVP');this.buffer=gl.createBuffer();
+   this.pos=gl.getAttribLocation(prog,'aPos');this.normal=gl.getAttribLocation(prog,'aNormal');this.color=gl.getAttribLocation(prog,'aColor');this.mvp=gl.getUniformLocation(prog,'uMVP');this.eye=gl.getUniformLocation(prog,'uEye');this.buffer=gl.createBuffer();
    let dragging=false,lastX=0,lastY=0;canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
    canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointermove',e=>{if(!dragging)return;this.theta+=(e.clientX-lastX)*.008;this.phi=Math.max(.15,Math.min(1.52,this.phi+(e.clientY-lastY)*.007));lastX=e.clientX;lastY=e.clientY;this.draw();});
    canvas.addEventListener('wheel',e=>{e.preventDefault();this.radius*=e.deltaY>0?1.09:.91;this.radius=Math.max(120,Math.min(this.radius,7000));this.draw();},{passive:false});
    new ResizeObserver(()=>this.draw()).observe(canvas);
  }
  reset(){this.theta=-.65;this.phi=.95;this.radius=Math.max(this.width*1.30,this.depth*2.2);}
- load(model){this.width=model.width;this.depth=model.depth;this.reset();if(!this.gl)return;
-   let vert=[];const triangle=(a,b,c,color)=>{const ab=b.map((n,i)=>n-a[i]),ac=c.map((n,i)=>n-a[i]),n=normalize(cross(ab,ac));for(const p of [a,b,c])vert.push(...p,...n,...color);};
-   const quad=(a,b,c,d,color)=>{triangle(a,b,c,color);triangle(a,c,d,color);};
-   const cube=(x,y,z,w,h,d,col)=>{const a=[x,y,z],b=[x+w,y,z],c=[x+w,y,z+d],d0=[x,y,z+d],A=[x,y+h,z],B=[x+w,y+h,z],C=[x+w,y+h,z+d],D=[x,y+h,z+d];quad(A,B,C,D,col);quad(d0,c,b,a,col);quad(a,b,B,A,col);quad(b,c,C,B,col);quad(c,d0,D,C,col);quad(d0,a,A,D,col);};
-   const cylinder=(x,y,z,r,h,col)=>{const N=18;for(let i=0;i<N;i++){const p=i*2*Math.PI/N,q=(i+1)*2*Math.PI/N,a=[x+r*Math.cos(p),y,z+r*Math.sin(p)],b=[x+r*Math.cos(q),y,z+r*Math.sin(q)],A=[a[0],y+h,a[2]],B=[b[0],y+h,b[2]];quad(a,b,B,A,col);triangle([x,y+h,z],A,B,col);}};
-   for(const p of model.parts){let c=rgb(p.color),y=p.type==='body'?0:17;
-     if(['knob','led','footswitch','joystick'].includes(p.type))cylinder(p.x+p.w/2,y,p.z+p.d/2,Math.min(p.w,p.d)*.42,p.h,c);
-     else if(p.type==='fader'){cube(p.x+p.w*.39,y,p.z,p.w*.22,1,p.d,[.11,.17,.26]);cube(p.x-2,y+2,p.z+p.d*.42,p.w+4,4,p.d*.14,c);}
-     else if(p.type==='wheel'){cube(p.x,y,p.z,p.w,p.h,p.d,[.04,.06,.08]);cube(p.x+5,y+4,p.z+2,p.w-10,p.h*.55,p.d-4,c);}
-     else if(p.type==='switch'){cube(p.x+3,y,p.z+2,p.w-6,2,p.d-4,c);cylinder(p.x+p.w/2,y+2,p.z+p.d/2,2,p.h,c);}
-     else cube(p.x,y,p.z,p.w,p.h,p.d,c);
+ async load(model,objUrl){
+   this.width=model.width;this.depth=model.depth;this.reset();
+   if(!this.gl)return;
+   const request=++this.loadToken;
+   this.vertexCount=0;this.draw();
+   // The C++ OBJ file is now the single source of truth for geometry.
+   // Using its vertex colors avoids maintaining a second, simplified mesh
+   // generator in JavaScript (which previously made 3D parts look boxy).
+   const response=await fetch(objUrl);
+   if(!response.ok)throw new Error(`Could not load generated OBJ (${response.status})`);
+   const text=await response.text();
+   if(request!==this.loadToken)return;
+   const vertices=[];
+   const output=[];
+   for(const line of text.split('\n')){
+     if(line.startsWith('v ')){
+       const values=line.trim().split(/\s+/).slice(1).map(Number);
+       if(values.length>=6)vertices.push(values);
+     }else if(line.startsWith('f ')){
+       const ids=line.trim().split(/\s+/).slice(1,4).map(v=>Number(v.split('/')[0])-1);
+       if(ids.length!==3 || ids.some(i=>i<0 || i>=vertices.length))continue;
+       const a=vertices[ids[0]],b=vertices[ids[1]],c=vertices[ids[2]];
+       const ab=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+       const ac=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
+       const n=normalize(cross(ab,ac));
+       for(const v of [a,b,c])output.push(v[0],v[1],v[2],...n,v[3],v[4],v[5]);
+     }
    }
-   this.vertexCount=vert.length/9;const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vert),gl.STATIC_DRAW);this.draw();
+   if(request!==this.loadToken)return;
+   if(!output.length)throw new Error('The generated OBJ contains no triangles');
+   this.vertexCount=output.length/9;
+   const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
+   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(output),gl.STATIC_DRAW);
+   this.draw();
  }
  draw(){const gl=this.gl;if(!gl||mode!=='3d')return;let canvas=this.canvas,rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
   const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
   gl.viewport(0,0,w,h);gl.clearColor(.945,.965,.985,1);gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const target=[this.width/2,5,this.depth/2],cp=Math.cos(this.phi),sp=Math.sin(this.phi);const eye=[target[0]+this.radius*sp*Math.sin(this.theta),target[1]+this.radius*cp,target[2]+this.radius*sp*Math.cos(this.theta)];
-  const mat=mul(persp(Math.PI/3,w/h,1,15000),lookAt(eye,target,[0,1,0]));gl.useProgram(this.prog);gl.uniformMatrix4fv(this.mvp,false,mat);
+  const mat=mul(persp(Math.PI/3,w/h,1,15000),lookAt(eye,target,[0,1,0]));gl.useProgram(this.prog);gl.uniformMatrix4fv(this.mvp,false,mat);gl.uniform3f(this.eye,eye[0],eye[1],eye[2]);
   gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.normal);gl.enableVertexAttribArray(this.color);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,36,12);gl.vertexAttribPointer(this.color,3,gl.FLOAT,false,36,24);gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
  }
 }

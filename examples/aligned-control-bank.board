@@ -1,0 +1,7 @@
+
+# Real-world inspired compact 8-channel MIDI controller
+CONTROLLERTYPE controller=board
+STYLE color=white panels=rounded
+KNOBS count=8 zone=center layout=row spacing=12
+FADERS count=8 zone=center layout=row spacing=12
+BUTTONS count=8 zone=bottom layout=row spacing=7

@@ -1,0 +1,16 @@
+# CMake
+/build/
+
+# Generated models
+/output/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.local

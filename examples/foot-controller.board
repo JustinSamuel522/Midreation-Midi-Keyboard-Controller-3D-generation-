@@ -1,0 +1,7 @@
+# Repeated foot switches + display - no keybed
+CONTROLLERTYPE controller=foot
+STYLE color=black material=steel corners=rounded
+FOOTSWITCHES grid=4x2 zone=bottom
+KNOBS count=3 zone=top-right
+DISPLAY size=small zone=top
+LEDS count=8 zone=top

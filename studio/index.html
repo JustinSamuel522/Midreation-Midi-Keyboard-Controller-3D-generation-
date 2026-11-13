@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Midreation — Build your own MIDI controller</title>
+<style>
+:root{--background:#f5f7fb;--paper:#ffffff;--ink:#202b44;--muted:#687692;--line:#e3e8f1;--mint:#1d9f97;--mint-soft:#e8f8f4;--violet:#7668d9;--violet-soft:#efebff;--shadow:0 14px 40px rgba(41,57,92,.07)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at 88% 2%,#e9e9ff 0,transparent 33%),radial-gradient(circle at 8% 50%,#e9f9f6 0,transparent 35%),var(--background)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:wait;opacity:.6}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #a5e4db;outline-offset:2px}
+header{padding:21px max(22px,calc((100vw - 1520px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid rgba(220,227,239,.9);background:rgba(255,255,255,.77);backdrop-filter:blur(12px)}
+.identity{display:flex;gap:13px;align-items:center}.logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#60d8c8,#8e82ee);display:grid;place-items:center;color:#fff;font-weight:850;font-size:24px;box-shadow:0 7px 15px #80d6cc55}.brand{font-size:23px;letter-spacing:-.9px;font-weight:800;line-height:1.1}.tagline{color:var(--muted);font-size:12px;margin-top:4px}.top-badge{padding:8px 13px;border:1px solid #d8e4eb;border-radius:50px;background:#fff;color:#64768c;font-size:12px}
+main{max-width:1560px;margin:auto;padding:25px 24px 42px;display:grid;grid-template-columns:minmax(355px,450px) minmax(0,1fr);gap:22px;align-items:start}.panel{background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden}.left-top{padding:24px 25px 20px;border-bottom:1px solid var(--line)}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;color:var(--mint)}h1,h2,h3,p{margin:0}h1{font-size:26px;letter-spacing:-.9px;line-height:1.17;margin:7px 0}h2{font-size:19px;letter-spacing:-.4px}.muted{color:var(--muted)}.small{font-size:12px}.step-track{display:flex;gap:7px;margin-top:22px}.step-pill{flex:1;border:1px solid #e6eaf2;border-radius:10px;background:#f9fafd;color:#7a879d;padding:9px 4px;font-weight:700;font-size:11px}.step-pill.active{color:#137d75;border-color:#9de0d6;background:#eaf9f6}.step-pill.done{color:#5c64ba;background:#f0efff;border-color:#e0dcfa}
+.step-body{padding:22px 25px 8px;min-height:325px}.step-screen{display:none}.step-screen.active{display:block}.step-title{font-size:17px;font-weight:800;letter-spacing:-.4px;margin-bottom:5px}.step-intro{color:var(--muted);font-size:13px;margin-bottom:19px}.type-stack{display:grid;gap:10px}.type-choice{border:1px solid #e1e6ef;background:#fff;border-radius:14px;padding:14px;display:flex;align-items:center;text-align:left;gap:13px;width:100%;transition:background .15s,border .15s}.type-choice:hover{border-color:#90d9ce;background:#f8fdfc}.type-choice.selected{border:2px solid #53bfb1;background:#f1fbf8;padding:13px}.type-icon{width:43px;height:43px;flex:none;border-radius:12px;background:#e9f7f5;color:#1b9f96;font-weight:800;display:grid;place-items:center;font-size:20px}.type-choice .name{font-weight:800;font-size:14px}.type-choice .detail{font-size:12px;color:var(--muted);margin-top:2px}.choice-mark{margin-left:auto;border:2px solid #ced6e3;border-radius:100%;width:18px;height:18px;flex:none}.selected .choice-mark{background:#40b6a8;border:5px solid #d5f2eb;box-shadow:0 0 0 1px #40b6a8}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{margin-top:16px}label{display:block;font-size:12px;font-weight:700;color:#53617b;margin-bottom:7px}.select,input[type=number],textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #dce3ed;background:#fcfdff;color:#26354c}.select{cursor:pointer}input[type=number]{max-width:100%}.conditional{padding-top:4px}.toggle-row{display:flex;align-items:center;gap:9px;margin:13px 0;color:#57647d;font-size:13px}.toggle-row input{width:17px;height:17px;accent-color:var(--mint)}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.control-card{padding:13px;border:1px solid #e3e8f1;border-radius:14px;background:#fbfcff}.control-head{font-weight:800;font-size:13px;display:flex;align-items:center;gap:7px;margin-bottom:9px}.control-symbol{width:26px;height:26px;border-radius:8px;background:#eeeaff;color:#7468d6;display:grid;place-items:center;font-size:15px}.control-card .field{margin-top:8px}.control-card label{margin-bottom:4px;font-size:11px}.control-card input,.control-card select{padding:8px 9px;font-size:12px}.more-controls{margin-top:15px;padding-top:13px;border-top:1px dashed #e4e8ef}.more-controls summary{font-weight:800;color:#5f64bc;cursor:pointer;font-size:13px}.more-controls .controls-grid{margin-top:13px}
+.palette{display:flex;gap:11px;flex-wrap:wrap;margin:12px 0 19px}.swatch{width:36px;height:36px;border-radius:12px;border:3px solid white;outline:1px solid #d9dfe9;background:var(--swatch);position:relative}.swatch.selected{outline:3px solid var(--mint);box-shadow:0 0 0 5px #dcf5f0}.swatch.selected:after{content:'✓';position:absolute;color:#fff;font-weight:900;inset:0;display:grid;place-items:center;text-shadow:0 1px 4px #1118}.tiny-note{border-radius:10px;background:#f0f8fb;padding:11px 12px;color:#62768a;font-size:12px;line-height:1.55;margin-top:17px}
+.advanced{padding:12px 24px 22px;border-top:1px solid var(--line)}.advanced summary{cursor:pointer;font-size:12px;font-weight:800;color:#5b62b6}.advanced p{font-size:12px;color:var(--muted);margin:8px 0}.advanced textarea{width:100%;min-height:230px;resize:vertical;white-space:pre;line-height:1.55;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;background:#202b42;color:#e4faf8;border:0}.advanced .toggle-row{font-size:12px;margin:8px 0}
+.footnav{padding:18px 24px 23px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between}.btn{border:1px solid #dce3ef;border-radius:11px;background:white;padding:11px 17px;color:#40506a;font-weight:750}.btn:hover{background:#f4f6fb}.btn.primary{border-color:#24aa9e;background:linear-gradient(105deg,#30b8aa,#269eaa);color:white;box-shadow:0 7px 16px #2fb1a631}.btn.primary:hover{filter:brightness(.96)}#back{visibility:hidden}.status{padding:0 25px 17px;font-size:12px;color:#5e7189}.status.error{color:#b93755}
+.preview-panel{min-height:706px;display:flex;flex-direction:column}.preview-head{display:flex;gap:13px;align-items:center;justify-content:space-between;padding:23px 26px;border-bottom:1px solid var(--line)}.preview-head p{color:var(--muted);font-size:12px;margin-top:4px}.view-buttons{display:flex;gap:5px;background:#f1f3fa;padding:4px;border-radius:11px}.view-buttons button{border:none;border-radius:9px;background:transparent;padding:8px 11px;font-weight:750;color:#77839b;font-size:12px}.view-buttons button.active{background:#fff;color:#286f81;box-shadow:0 3px 9px #18253f12}
+.preview-area{position:relative;flex:1;min-height:445px;background:radial-gradient(ellipse at 55% 45%,#ffffff 0%,#f0f6fa 58%,#e9edf9 100%)}#canvas{position:absolute;width:100%;height:100%;inset:0;display:block;cursor:grab;touch-action:none}#canvas:active{cursor:grabbing}#svgView{position:absolute;inset:18px;width:calc(100% - 36px);height:calc(100% - 36px);object-fit:contain;display:none}.empty-preview{position:absolute;inset:0;display:grid;place-items:center;text-align:center;pointer-events:none;padding:35px}.empty-preview .placeholder{margin:auto auto 18px;display:block;width:180px;height:94px;border-radius:19px;background:#dcefe9;border:9px solid #c0e2d9;box-shadow:0 18px 30px #6a819623;transform:perspective(500px) rotateX(28deg)}.empty-preview .placeholder{position:relative;overflow:hidden}.empty-preview .placeholder:after{content:'●  ●  ●  ●';position:absolute;inset:0;display:grid;place-items:center;white-space:nowrap;color:#5faaa9;font-size:23px;letter-spacing:5px}.empty-preview h3{font-size:20px;letter-spacing:-.5px;margin:0 0 7px}.empty-preview p{color:#7c899d;font-size:13px;max-width:330px}.model-info{display:none;position:absolute;top:19px;left:20px;background:#fffffff0;border:1px solid #dce6ed;border-radius:12px;padding:11px 15px;color:#63758b;box-shadow:0 6px 14px #1111110b;font-size:12px;line-height:1.7}.model-info strong{color:#263950;font-size:14px}
+.model-footer{padding:16px 24px;border-top:1px solid #e7ebf2;display:flex;gap:14px;align-items:center;flex-wrap:wrap}.variant-buttons{display:flex;gap:8px;flex-wrap:wrap}.variant-buttons button{border:1px solid #e0e5f0;border-radius:9px;padding:8px 13px;background:white;color:#53627d;font-weight:750;font-size:12px}.variant-buttons button.selected{border-color:#9789e6;background:#f0edff;color:#6153bd}.downloads{margin-left:auto;display:flex;gap:13px;flex-wrap:wrap}.downloads a{text-decoration:none;color:var(--mint);font-size:12px;font-weight:800}.downloads a.disabled{opacity:.35;pointer-events:none}.model-metrics{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding:14px 24px;font-size:12px;color:#7c879b}.model-metrics strong{color:#34445d}.bottom-note{margin-top:14px;padding:20px 24px;border:1px solid #dfe9f0;border-radius:16px;background:rgba(255,255,255,.75)}.bottom-note strong{font-size:13px}.bottom-note p{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.6}
+@media(max-width:1050px){main{grid-template-columns:1fr}.preview-panel{min-height:570px}}@media(max-width:650px){main{padding:12px;gap:12px}header{padding:15px}.tagline{font-size:11px}.top-badge{display:none}.left-top{padding:18px}.step-body{padding:18px}.controls-grid{grid-template-columns:1fr 1fr}.preview-head{padding:17px;flex-wrap:wrap}.preview-area{min-height:320px}.preview-panel{min-height:470px}.model-footer,.model-metrics{padding:13px}.downloads{margin-left:0}.footnav{padding:14px 18px}}@media(max-width:410px){.controls-grid{grid-template-columns:1fr}.step-pill{font-size:10px}}
+</style>
+</head>
+<body>
+<header>
+ <div class="identity"><div class="logo">m</div><div><div class="brand">Midreation</div><div class="tagline">Your controller. Your creativity.</div></div></div>
+ <span class="top-badge">Build your own MIDI instrument · Prototype</span>
+</header>
+<main>
+<section class="panel" aria-label="Build your instrument">
+ <div class="left-top">
+  <div class="eyebrow">Design your own</div><h1>Make it yours.</h1><p class="muted small">Tell us what you want. We'll handle the technical layout.</p>
+  <div class="step-track" aria-label="Design steps"><button class="step-pill active" data-step="1">1. Instrument</button><button class="step-pill" data-step="2">2. Controls</button><button class="step-pill" data-step="3">3. Appearance</button></div>
+ </div>
+ <div class="step-body">
+  <div class="step-screen active" id="step-1">
+   <h2 class="step-title">What are we creating?</h2><p class="step-intro">Choose the kind of MIDI instrument you'd like to customize.</p>
+   <div class="type-stack">
+    <button class="type-choice selected" data-type="board"><span class="type-icon">▤</span><span><span class="name">Desktop MIDI controller</span><div class="detail">Knobs, faders, pads, and buttons</div></span><span class="choice-mark"></span></button>
+    <button class="type-choice" data-type="keyboard-synth"><span class="type-icon">▥</span><span><span class="name">MIDI keyboard or synthesizer</span><div class="detail">Piano keys plus your choice of controls</div></span><span class="choice-mark"></span></button>
+    <button class="type-choice" data-type="foot"><span class="type-icon">◎</span><span><span class="name">MIDI foot controller</span><div class="detail">Footswitches and hands-free controls</div></span><span class="choice-mark"></span></button>
+   </div>
+   <div class="conditional" id="keyboardFields" hidden>
+    <div class="field-row"><div class="field"><label for="keys">How many piano keys?</label><select class="select" id="keys"><option>25</option><option>37</option><option>49</option><option selected>61</option><option>73</option><option>76</option><option>88</option></select></div><div class="field"><label for="keyAction">Keybed feel</label><select class="select" id="keyAction"><option value="synth">Synth action</option><option value="semi-weighted" selected>Semi-weighted</option><option value="weighted">Weighted</option><option value="hammer">Hammer action</option></select></div></div>
+    <p class="small muted" style="margin-top:9px">Keybed action is stored as a design parameter; physical key mechanics are not simulated yet.</p>
+   </div>
+  </div>
+  <div class="step-screen" id="step-2">
+   <h2 class="step-title">Choose your controls</h2><p class="step-intro">Set a quantity and preferred area. Choose “Auto” and we'll decide where they fit best.</p>
+   <div id="primaryControls" class="controls-grid"></div>
+   <details class="more-controls"><summary>More components (switches, screens, LEDs...)</summary><div id="extraControls" class="controls-grid"></div></details>
+   <div class="tiny-note">Position requests are preferences. The generator may shift a group to prevent overlaps, and will tell you when it does.</div>
+  </div>
+  <div class="step-screen" id="step-3">
+   <h2 class="step-title">Pick your finish</h2><p class="step-intro">Choose a chassis color and how many layouts you'd like to explore.</p>
+   <label>Body color</label><div class="palette" id="palette"></div><div class="small muted" id="colorLabel">Soft navy</div>
+   <div class="field-row"><div class="field"><label for="layoutOptions">Design alternatives</label><select class="select" id="layoutOptions"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select></div><div class="field"><label for="seed">Variation number</label><input type="number" id="seed" min="0" max="1000000" value="7" /></div></div>
+   <div class="field-row"><div class="field"><label for="width">Body width (mm)</label><input type="number" id="width" min="180" max="4000" placeholder="Auto" /></div><div class="field"><label for="depth">Body depth (mm)</label><input type="number" id="depth" min="130" max="1800" placeholder="Auto" /></div></div>
+   <div class="toggle-row"><input type="checkbox" id="pitch" /><label for="pitch" style="margin:0">Include a pitch-bend wheel</label></div>
+   <div class="toggle-row"><input type="checkbox" id="mod" /><label for="mod" style="margin:0">Include a modulation wheel</label></div>
+   <div class="tiny-note">Leave dimensions blank for automatic sizing. You can return to any step and regenerate to refine your design.</div>
+  </div>
+ </div>
+ <details class="advanced" id="advanced"><summary>Advanced: view or edit the procedural grammar</summary><p>The friendly builder writes this specification automatically. For class demonstrations, you can edit it directly.</p><textarea id="grammar" spellcheck="false" aria-label="Generated procedural grammar"></textarea><div class="toggle-row"><input type="checkbox" id="useCustom" /><label for="useCustom" style="margin:0">Use my edited grammar when generating</label></div></details>
+ <div class="footnav"><button id="back" class="btn">← Back</button><button id="next" class="btn primary">Choose controls →</button></div>
+ <div id="status" class="status" role="status">Start by choosing the instrument you'd like to build.</div>
+</section>
+<section>
+ <div class="panel preview-panel">
+  <div class="preview-head"><div><h2>Your design preview</h2><p>Orbit, zoom, explore variations, and download your model.</p></div><div class="view-buttons"><button class="active" id="mode3d">3D model</button><button id="mode2d">Top view</button><button id="resetCam" title="Reset camera">↺</button></div></div>
+  <div class="preview-area"><canvas id="canvas" aria-label="Interactive 3D MIDI controller preview"></canvas><img id="svgView" alt="Procedurally generated MIDI controller top view" /><div class="empty-preview" id="emptyPreview"><div><div class="placeholder"></div><h3>Let's create something.</h3><p>Pick an instrument, add your favorite controls, and see your ideas take shape.</p></div></div><div class="model-info" id="modelInfo"></div></div>
+  <div class="model-footer"><span class="small muted"><strong>Layouts</strong></span><div id="variants" class="variant-buttons"></div><div class="downloads"><a id="obj" class="disabled" href="#" download>3D OBJ</a><a id="svg" class="disabled" href="#" download>2D SVG</a><a id="json" class="disabled" href="#" download>Design JSON</a></div></div>
+  <div class="model-metrics"><span>Size: <strong id="dims">—</strong></span><span>3D parts: <strong id="parts">—</strong></span><span>Triangles: <strong id="triangles">—</strong></span><span>Powered by: <strong>C++ procedural engine</strong></span></div>
+ </div>
+ <div class="bottom-note"><strong>Built to be personalized, not selected from presets.</strong><p>Midreation converts your answers into a text grammar, validates component placement, generates geometry, and offers alternative layouts. The interface is a prototype: realistic material textures, drag-and-drop placement, and manufacturing export are future features.</p></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const zones=[['auto','Auto — best fit'],['top','Top'],['left','Left'],['right','Right'],['center','Center'],['top-left','Top left'],['top-right','Top right'],['bottom','Bottom']];
+const controls=[
+ {id:'knobs',name:'Knobs / encoders',glyph:'◉',cmd:'KNOBS',max:96,group:'primary'},
+ {id:'faders',name:'Faders / sliders',glyph:'☷',cmd:'FADERS',max:48,group:'primary'},
+ {id:'buttons',name:'Regular buttons',glyph:'▣',cmd:'BUTTONS',max:64,group:'primary'},
+ {id:'clicky',name:'Clicky buttons',glyph:'▦',cmd:'BUTTONS',max:64,group:'primary'},
+ {id:'pads',name:'Drum pads',glyph:'▦',cmd:'PADS',max:64,group:'primary'},
+ {id:'displays',name:'Display screens',glyph:'▱',cmd:'DISPLAY',max:4,group:'primary'},
+ {id:'switches',name:'Toggle switches',glyph:'⌁',cmd:'SWITCHES',max:24,group:'extra'},
+ {id:'footswitches',name:'Footswitches',glyph:'◎',cmd:'FOOTSWITCHES',max:24,group:'extra'},
+ {id:'leds',name:'Indicator LEDs',glyph:'✦',cmd:'LEDS',max:48,group:'extra'},
+ {id:'joysticks',name:'Joysticks',glyph:'✣',cmd:'JOYSTICK',max:8,group:'extra'},
+ {id:'xypads',name:'XY touchpads',glyph:'⊞',cmd:'XYPAD',max:4,group:'extra'},
+ {id:'ribbons',name:'Ribbon strips',glyph:'━',cmd:'RIBBON',max:4,group:'extra'},
+ {id:'ports',name:'Connections',glyph:'⇄',cmd:'PORTS',max:8,group:'extra'}
+];
+const palettes=[{name:'Soft navy',value:'navy',hex:'#1a2647'},{name:'Midnight black',value:'black',hex:'#11131b'},{name:'Cloud white',value:'white',hex:'#edeff7'},{name:'Silver',value:'silver',hex:'#c1c5d4'},{name:'Mint teal',value:'teal',hex:'#38c2b8'},{name:'Lavender',value:'purple',hex:'#a17afa'},{name:'Ocean blue',value:'blue',hex:'#4280e8'},{name:'Warm brown',value:'wood',hex:'#8d5c3b'}];
+const profiles={
+ board:{knobs:8,faders:4,buttons:6,pads:4,displays:0,clicky:0,footswitches:0,leds:0,switches:0},
+ 'keyboard-synth':{knobs:8,faders:4,buttons:6,pads:8,displays:1,clicky:4,footswitches:0,leds:0,switches:0},
+ foot:{knobs:0,faders:0,buttons:0,pads:0,displays:1,clicky:0,footswitches:6,leds:6,switches:0}
+};
+let currentStep=1,selectedType='board',selectedColor='navy',results=[],active=0,mode='3d';
+function createControls(){
+ for(const c of controls){
+  const card=document.createElement('div');card.className='control-card';
+  const head=document.createElement('div');head.className='control-head';head.innerHTML=`<span class="control-symbol">${c.glyph}</span>${c.name}`;card.append(head);
+  const f1=document.createElement('div');f1.className='field';const l1=document.createElement('label');l1.htmlFor='count-'+c.id;l1.textContent='How many?';
+  const input=document.createElement('input');input.type='number';input.id='count-'+c.id;input.min='0';input.max=String(c.max);input.step='1';input.value='0';input.addEventListener('input',syncGrammar);f1.append(l1,input);
+  const f2=document.createElement('div');f2.className='field';const l2=document.createElement('label');l2.htmlFor='zone-'+c.id;l2.textContent='Preferred position';
+  const sel=document.createElement('select');sel.id='zone-'+c.id;sel.className='select';for(const [value,name] of zones){const option=document.createElement('option');option.value=value;option.textContent=name;sel.append(option);}sel.addEventListener('change',syncGrammar);f2.append(l2,sel);
+  card.append(f1,f2);$(c.group==='primary'?'primaryControls':'extraControls').append(card);
+ }
+}
+function setProfile(type){
+ selectedType=type;
+ for(const b of document.querySelectorAll('[data-type]')){const active=b.dataset.type===type;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',active?'true':'false');}
+ $('keyboardFields').hidden=type!=='keyboard-synth';
+ for(const c of controls){$('count-'+c.id).value=profiles[type][c.id]||0;$('zone-'+c.id).value='auto';}
+ if(type==='keyboard-synth'){$('zone-knobs').value='top-left';$('zone-pads').value='right';$('zone-displays').value='center';$('zone-faders').value='left';}
+ if(type==='foot'){$('zone-footswitches').value='bottom';$('zone-displays').value='top';$('primaryControls').prepend($('count-footswitches').closest('.control-card'));}else{$('extraControls').prepend($('count-footswitches').closest('.control-card'));}
+ $('pitch').checked=type==='keyboard-synth';$('mod').checked=type==='keyboard-synth';
+ $('width').value='';$('depth').value='';syncGrammar();
+}
+function createPalette(){for(const p of palettes){const b=document.createElement('button');b.className='swatch';b.style.setProperty('--swatch',p.hex);b.title=p.name;b.type='button';b.setAttribute('aria-label',p.name);b.dataset.color=p.value;b.onclick=()=>{selectedColor=p.value;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));$('colorLabel').textContent=p.name;syncGrammar();};$('palette').append(b);}document.querySelector('[data-color="navy"]').click();}
+function buildSpec(){
+ const lines=['# Generated by Midreation — you can edit this in Advanced mode',`CONTROLLERTYPE controller=${selectedType}`];
+ const body=[];for(const prop of ['width','depth']){const raw=$(prop).value.trim();if(raw)body.push(`${prop}=${raw}`);}if(body.length)lines.push('BODY '+body.join(' '));
+ lines.push(`STYLE color=${selectedColor}`);
+ if(selectedType==='keyboard-synth')lines.push(`KEYBED keys=${$('keys').value} type=${$('keyAction').value}`);
+ for(const c of controls){const value=Number($('count-'+c.id).value)||0;if(value<=0)continue;let cmd=c.cmd;
+   if(c.id==='buttons')cmd+=` regular=${value}`;
+   else if(c.id==='clicky')cmd+=` clicky=${value}`;
+   else cmd+=` count=${value}`;
+   cmd+=` zone=${$('zone-'+c.id).value}`;
+   if(c.id==='displays')cmd+=` size=medium`;
+   lines.push(cmd);
+ }
+ if($('pitch').checked||$('mod').checked)lines.push(`WHEELS pitch=${$('pitch').checked?1:0} mod=${$('mod').checked?1:0}`);
+ return lines.join('\n')+'\n';
+}
+function syncGrammar(){if(!$('useCustom').checked)$('grammar').value=buildSpec();}
+function gotoStep(step){currentStep=Math.max(1,Math.min(3,step));for(let i=1;i<=3;i++){$('step-'+i).classList.toggle('active',i===currentStep);const tab=document.querySelector(`[data-step="${i}"]`);tab.classList.toggle('active',i===currentStep);tab.classList.toggle('done',i<currentStep);tab.setAttribute('aria-current',i===currentStep?'step':'false');}
+ $('back').style.visibility=currentStep===1?'hidden':'visible';$('next').textContent=currentStep===1?'Choose controls →':currentStep===2?'Choose appearance →':'Generate my design →';
+ if(currentStep===3)syncGrammar();
+ if(!results.length && !$('status').classList.contains('error')){
+   $('status').textContent=currentStep===1?'Start by choosing the instrument you’d like to build.':currentStep===2?'Choose counts and locations. Leave any count at zero to omit it.':'Choose a color, then generate your first model.';
+ }
+}
+function setMode(m){mode=m;$('mode3d').classList.toggle('active',m==='3d');$('mode2d').classList.toggle('active',m==='2d');$('canvas').style.display=m==='3d'?'block':'none';$('svgView').style.display=(m==='2d'&&results.length)?'block':'none';if(m==='3d'&&typeof viewer!=='undefined')viewer.draw();}
+async function generate(){
+ const button=$('next');const prev=button.textContent;button.disabled=true;button.textContent='Building your model...';$('status').classList.remove('error');$('status').textContent='Interpreting controls, resolving placements, and building geometry…';
+ try{
+  const spec=$('useCustom').checked?$('grammar').value:buildSpec();
+  if(!$('useCustom').checked)$('grammar').value=spec;
+  for(const c of controls){const n=Number($('count-'+c.id).value);if(!Number.isInteger(n)||n<0||n>c.max)throw new Error(`Enter 0–${c.max} for ${c.name}.`);}
+  const response=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec,seed:Number($('seed').value),variants:Number($('layoutOptions').value)})});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'Generation failed.');
+  results=data.variants;active=0;$('variants').replaceChildren();results.forEach((r,i)=>{const b=document.createElement('button');b.textContent='Layout '+(i+1);b.addEventListener('click',()=>show(i));$('variants').append(b);});
+  $('emptyPreview').style.display='none';$('modelInfo').style.display='block';show(0);
+  const notes=Array.isArray(data.notes)?data.notes.filter(Boolean):[];$('status').textContent=`Created ${results.length} layout${results.length===1?'':'s'}.`+(notes.length?' '+notes.join(' '):'');
+ }catch(error){$('status').classList.add('error');$('status').textContent=error.message;}
+ finally{button.disabled=false;button.textContent=prev;}
+}
+function show(index){
+ active=index;const r=results[index],m=r.model;
+ for(const [i,b] of Array.from($('variants').children).entries())b.classList.toggle('selected',index===i);
+ $('dims').textContent=`${Math.round(m.width)} × ${Math.round(m.depth)} mm`;$('parts').textContent=m.parts.length.toLocaleString();$('triangles').textContent=m.triangles.toLocaleString();
+ $('modelInfo').replaceChildren();const name=document.createElement('strong');name.textContent=`Layout ${index+1} · ${m.kind}`;const details=document.createElement('div');details.textContent=`${Math.round(m.width)} × ${Math.round(m.depth)} mm · ${m.parts.length} parts`;$('modelInfo').append(name,details);
+ for(const ext of ['obj','svg','json']){$(ext).href=r[ext];$(ext).classList.remove('disabled');}
+ $('svgView').src=r.svg;viewer.load(m);if(mode==='2d')$('svgView').style.display='block';if(Array.isArray(m.warnings)&&m.warnings.length)$('status').textContent='Placement notes: '+m.warnings.join(' ');
+}
+createControls();createPalette();setProfile('board');gotoStep(1);
+for(const b of document.querySelectorAll('[data-type]'))b.onclick=()=>setProfile(b.dataset.type);
+for(const b of document.querySelectorAll('[data-step]'))b.onclick=()=>gotoStep(Number(b.dataset.step));
+$('back').onclick=()=>gotoStep(currentStep-1);$('next').onclick=()=>currentStep===3?generate():gotoStep(currentStep+1);
+for(const id of ['keys','keyAction','width','depth','pitch','mod'])$(id).addEventListener('change',syncGrammar);
+$('useCustom').onchange=()=>{if(!$('useCustom').checked)syncGrammar();else $('advanced').open=true;};
+$('mode3d').onclick=()=>setMode('3d');$('mode2d').onclick=()=>setMode('2d');$('resetCam').onclick=()=>{viewer.reset();viewer.draw();};
+// WebGL preview: reads the same geometry metadata produced by the C++ engine.
+const vshader=`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor; uniform mat4 uMVP; varying vec3 vColor; varying float vLight; void main(){gl_Position=uMVP*vec4(aPos,1.0);vColor=aColor;vec3 n=normalize(aNormal);vLight=0.68+max(dot(n,normalize(vec3(-0.4,0.9,0.65))),0.0)*0.29;}`;
+const fshader=`precision mediump float; varying vec3 vColor; varying float vLight; void main(){gl_FragColor=vec4(vColor*vLight,1.0);}`;
+function mul(a,b){const o=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[i+4*j]+=a[i+4*k]*b[k+4*j];return o;}
+function persp(fov,asp,near,far){let f=1/Math.tan(fov/2),a=new Float32Array(16);a[0]=f/asp;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a;}
+function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function normalize(a){const l=Math.hypot(...a)||1;return a.map(v=>v/l);}
+function lookAt(eye,center,up){const z=normalize(eye.map((v,i)=>v-center[i])),x=normalize(cross(up,z)),y=cross(z,x);return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-x.reduce((v,a,i)=>v+a*eye[i],0),-y.reduce((v,a,i)=>v+a*eye[i],0),-z.reduce((v,a,i)=>v+a*eye[i],0),1]);}
+function rgb(hex){if(!/^#[0-9a-f]{6}$/i.test(hex))return[.5,.6,.7];return[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255);}
+class Renderer{
+ constructor(canvas){this.canvas=canvas;this.gl=canvas.getContext('webgl',{antialias:true,alpha:false});this.theta=-.6;this.phi=.8;this.radius=800;this.width=420;this.depth=240;this.vertexCount=0;
+   if(!this.gl){$('mode3d').disabled=true;setMode('2d');return;}
+   const gl=this.gl;
+   const shader=(type,src)=>{let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;};
+   const prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vshader));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,fshader));gl.linkProgram(prog);gl.useProgram(prog);this.prog=prog;
+   this.pos=gl.getAttribLocation(prog,'aPos');this.normal=gl.getAttribLocation(prog,'aNormal');this.color=gl.getAttribLocation(prog,'aColor');this.mvp=gl.getUniformLocation(prog,'uMVP');this.buffer=gl.createBuffer();
+   let dragging=false,lastX=0,lastY=0;canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
+   canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointermove',e=>{if(!dragging)return;this.theta+=(e.clientX-lastX)*.008;this.phi=Math.max(.15,Math.min(1.52,this.phi+(e.clientY-lastY)*.007));lastX=e.clientX;lastY=e.clientY;this.draw();});
+   canvas.addEventListener('wheel',e=>{e.preventDefault();this.radius*=e.deltaY>0?1.09:.91;this.radius=Math.max(120,Math.min(this.radius,7000));this.draw();},{passive:false});
+   new ResizeObserver(()=>this.draw()).observe(canvas);
+ }
+ reset(){this.theta=-.65;this.phi=.95;this.radius=Math.max(this.width*1.30,this.depth*2.2);}
+ load(model){this.width=model.width;this.depth=model.depth;this.reset();if(!this.gl)return;
+   let vert=[];const triangle=(a,b,c,color)=>{const ab=b.map((n,i)=>n-a[i]),ac=c.map((n,i)=>n-a[i]),n=normalize(cross(ab,ac));for(const p of [a,b,c])vert.push(...p,...n,...color);};
+   const quad=(a,b,c,d,color)=>{triangle(a,b,c,color);triangle(a,c,d,color);};
+   const cube=(x,y,z,w,h,d,col)=>{const a=[x,y,z],b=[x+w,y,z],c=[x+w,y,z+d],d0=[x,y,z+d],A=[x,y+h,z],B=[x+w,y+h,z],C=[x+w,y+h,z+d],D=[x,y+h,z+d];quad(A,B,C,D,col);quad(d0,c,b,a,col);quad(a,b,B,A,col);quad(b,c,C,B,col);quad(c,d0,D,C,col);quad(d0,a,A,D,col);};
+   const cylinder=(x,y,z,r,h,col)=>{const N=18;for(let i=0;i<N;i++){const p=i*2*Math.PI/N,q=(i+1)*2*Math.PI/N,a=[x+r*Math.cos(p),y,z+r*Math.sin(p)],b=[x+r*Math.cos(q),y,z+r*Math.sin(q)],A=[a[0],y+h,a[2]],B=[b[0],y+h,b[2]];quad(a,b,B,A,col);triangle([x,y+h,z],A,B,col);}};
+   for(const p of model.parts){let c=rgb(p.color),y=p.type==='body'?0:17;
+     if(['knob','led','footswitch','joystick'].includes(p.type))cylinder(p.x+p.w/2,y,p.z+p.d/2,Math.min(p.w,p.d)*.42,p.h,c);
+     else if(p.type==='fader'){cube(p.x+p.w*.39,y,p.z,p.w*.22,1,p.d,[.11,.17,.26]);cube(p.x-2,y+2,p.z+p.d*.42,p.w+4,4,p.d*.14,c);}
+     else if(p.type==='wheel'){cube(p.x,y,p.z,p.w,p.h,p.d,[.04,.06,.08]);cube(p.x+5,y+4,p.z+2,p.w-10,p.h*.55,p.d-4,c);}
+     else if(p.type==='switch'){cube(p.x+3,y,p.z+2,p.w-6,2,p.d-4,c);cylinder(p.x+p.w/2,y+2,p.z+p.d/2,2,p.h,c);}
+     else cube(p.x,y,p.z,p.w,p.h,p.d,c);
+   }
+   this.vertexCount=vert.length/9;const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vert),gl.STATIC_DRAW);this.draw();
+ }
+ draw(){const gl=this.gl;if(!gl||mode!=='3d')return;let canvas=this.canvas,rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);gl.clearColor(.945,.965,.985,1);gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const target=[this.width/2,5,this.depth/2],cp=Math.cos(this.phi),sp=Math.sin(this.phi);const eye=[target[0]+this.radius*sp*Math.sin(this.theta),target[1]+this.radius*cp,target[2]+this.radius*sp*Math.cos(this.theta)];
+  const mat=mul(persp(Math.PI/3,w/h,1,15000),lookAt(eye,target,[0,1,0]));gl.useProgram(this.prog);gl.uniformMatrix4fv(this.mvp,false,mat);
+  gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.normal);gl.enableVertexAttribArray(this.color);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,36,12);gl.vertexAttribPointer(this.color,3,gl.FLOAT,false,36,24);gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
+ }
+}
+const viewer=new Renderer($('canvas'));
+// Initial screen intentionally asks the user for preferences instead of loading a fixed example.
+</script>
+</body>
+</html>

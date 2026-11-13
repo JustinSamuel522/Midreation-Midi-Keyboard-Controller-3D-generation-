@@ -1,0 +1,11 @@
+CONTROLLERTYPE controller=keyboard-synth
+BODY width=1080 depth=360
+STYLE color=navy panels=rounded
+KEYBED keys=61 type=semi-weighted
+KNOBS grid=6x2 zone=top-left
+FADERS count=6 zone=left
+BUTTONS regular=8 clicky=4
+PADS grid=4x2 zone=right
+WHEELS pitch=1 mod=1
+DISPLAY size=large zone=center
+SWITCHES count=3 zone=top-right

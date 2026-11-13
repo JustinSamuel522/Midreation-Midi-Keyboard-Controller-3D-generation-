@@ -1,0 +1,7 @@
+# A compact controller, inspired by the presentation
+CONTROLLERTYPE controller=board
+CONTROLLER width=420 depth=240
+STYLE tilt=8 corners=rounded color=navy
+KNOBS grid=4x2 zone=top
+FADERS count=4 zone=right
+BUTTONS grid=3x2 zone=left

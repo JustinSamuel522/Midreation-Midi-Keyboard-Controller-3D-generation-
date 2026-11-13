@@ -1,0 +1,5 @@
+# No dimensions and no zones: solver chooses dimensions and places controls.
+CONTROLLERTYPE controller=board
+KNOBS count=12
+FADERS count=5
+PADS grid=4x4

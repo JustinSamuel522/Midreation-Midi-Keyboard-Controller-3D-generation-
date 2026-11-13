@@ -1,0 +1,11 @@
+# A completely independent design - arbitrary count, no named size class
+CONTROLLERTYPE controller=keyboard-synth
+STYLE color=black material=aluminum corners=rounded
+KEYBED keys=37 action=synth
+KNOBS count=7 zone=top-left
+FADERS count=5 zone=left
+BUTTONS regular=3 clicky=4
+PADS grid=3x2 zone=right
+DISPLAY size=small zone=center
+WHEELS pitch=1 mod=1
+LEDS count=5

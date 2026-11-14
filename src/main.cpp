@@ -314,10 +314,141 @@ struct Layout {
     });
     for(const auto&g:rest)addGroup(g);
   }
+  // Auto Best Fit for desktop boards: preserve each control bank's internal
+  // geometry and spacing, then pack the banks into centered, balanced rows.
+  // Explicit placement zones, foot controllers and keybeds keep their own solver.
+  void fitAutoBoard(){
+    if(spec.kind!="board" || spec.keys>0 || spec.groups.empty())return;
+    for(const auto& g:spec.groups)if(g.zone!="auto")return;
+
+    struct Block {
+      size_t first,last;
+      double x,z,w,d;
+      string type;
+    };
+    vector<Block> blocks;
+    // The existing generator appends the parts of each group consecutively.
+    // Keeping these groups intact respects explicit grids, row/column layouts,
+    // physical component dimensions, and paired knob/fader channel alignment.
+    for(size_t first=1;first<parts.size();){
+      size_t last=first+1;
+      while(last<parts.size() && parts[last].group==parts[first].group)++last;
+      double x0=1e100,z0=1e100,x1=-1e100,z1=-1e100;
+      for(size_t j=first;j<last;j++){
+        x0=min(x0,parts[j].x);z0=min(z0,parts[j].z);
+        x1=max(x1,parts[j].x+parts[j].w);z1=max(z1,parts[j].z+parts[j].d);
+      }
+      blocks.push_back({first,last,x0,z0,x1-x0,z1-z0,parts[first].type});
+      first=last;
+    }
+    if(blocks.empty())return;
+
+    // Offer meaningful alternatives without changing individual components:
+    // design 1 is control-oriented, 2 is area-oriented, 3 is width-oriented.
+    auto priority=[](const string& type){
+      if(type=="knob")return 0;
+      if(type=="fader")return 1;
+      if(type=="display")return 2;
+      if(type=="pad")return 3;
+      if(type=="button" || type=="clicky")return 4;
+      if(type=="wheel")return 9;
+      return 5;
+    };
+    stable_sort(blocks.begin(),blocks.end(),[&](const Block& a,const Block& b){
+      if(a.type=="wheel" && b.type!="wheel")return false;
+      if(b.type=="wheel" && a.type!="wheel")return true;
+      if(id%3==1)return priority(a.type)<priority(b.type);
+      if(id%3==2)return a.w*a.d>b.w*b.d;
+      return a.w>b.w;
+    });
+
+    const double edge=20.,groupGap=18.;
+    struct Row {vector<size_t> members;double w=0,d=0;};
+    auto makeRows=[&](double limit){
+      vector<Row> rows;Row row;
+      for(size_t i=0;i<blocks.size();i++){
+        const Block& b=blocks[i];
+        if(b.w>limit+1e-6)return vector<Row>{};
+        if(!row.members.empty() && row.w+groupGap+b.w>limit+1e-6){
+          rows.push_back(row);row=Row{};
+        }
+        if(!row.members.empty())row.w+=groupGap;
+        row.w+=b.w;row.d=max(row.d,b.d);row.members.push_back(i);
+      }
+      if(!row.members.empty())rows.push_back(row);
+      return rows;
+    };
+
+    vector<Row> bestRows;
+    double bestScore=1e100,newWidth=spec.width,newDepth=spec.depth;
+    const double targetAspect=(id%3==1?2.3:(id%3==2?1.9:2.7));
+    auto consider=[&](double limit){
+      auto rows=makeRows(limit);
+      if(rows.empty())return;
+      double usedWidth=0,usedDepth=groupGap*(rows.size()-1);
+      for(const Row& row:rows){usedWidth=max(usedWidth,row.w);usedDepth+=row.d;}
+      double requiredWidth=usedWidth+2*edge,requiredDepth=usedDepth+2*edge;
+      double w=spec.fixedWidth?spec.width:max(140.,requiredWidth);
+      double d=spec.fixedDepth?spec.depth:max(100.,requiredDepth);
+      if(requiredWidth>w+1e-6 || requiredDepth>d+1e-6 || w>4000 || d>1800)return;
+      double aspect=w/d;
+      double score=w*d*(1.+.20*abs(log(aspect/targetAspect)))+70.*rows.size();
+      if(score<bestScore){bestScore=score;bestRows=move(rows);newWidth=w;newDepth=d;}
+    };
+
+    if(spec.fixedWidth){
+      consider(spec.width-2*edge);
+    }else{
+      double minContentWidth=0,totalContentWidth=groupGap*(blocks.size()-1);
+      for(const Block& b:blocks){minContentWidth=max(minContentWidth,b.w);totalContentWidth+=b.w;}
+      const double step=max(8.,(totalContentWidth-minContentWidth)/80.);
+      for(double limit=minContentWidth;limit<=totalContentWidth+1e-6;limit+=step)consider(limit);
+      consider(totalContentWidth);
+    }
+    // The original collision-free placement remains intact if no candidate
+    // meets a tightly specified width/depth constraint.
+    if(bestRows.empty())return;
+
+    spec.width=newWidth;spec.depth=newDepth;
+    parts.front().w=newWidth;parts.front().d=newDepth;
+    double baseDepth=groupGap*(bestRows.size()-1);
+    for(const Row& row:bestRows)baseDepth+=row.d;
+    double extraZ=0;
+    if(spec.fixedDepth && bestRows.size()>1)
+      extraZ=min(60.,max(0.,(newDepth-2*edge-baseDepth)/(bestRows.size()-1)));
+    const double rowGap=groupGap+extraZ;
+    double z=(newDepth-(baseDepth+extraZ*(bestRows.size()-1)))/2.;
+    used.clear();
+    for(const Row& row:bestRows){
+      double extraX=0;
+      if(spec.fixedWidth && row.members.size()>1)
+        extraX=min(48.,max(0.,(newWidth-2*edge-row.w)/(row.members.size()-1)));
+      double x=(newWidth-(row.w+extraX*(row.members.size()-1)))/2.;
+      for(size_t index:row.members){
+        const Block& b=blocks[index];
+        double blockZ=z+(row.d-b.d)/2.;
+        for(size_t j=b.first;j<b.last;j++){
+          parts[j].x+=x-b.x;
+          parts[j].z+=blockZ-b.z;
+        }
+        used.push_back({x,blockZ,b.w,b.d});
+        x+=b.w+groupGap+extraX;
+      }
+      z+=row.d+rowGap;
+    }
+    if(!spec.fixedWidth || !spec.fixedDepth)
+      warnings.push_back("Auto Best Fit sized the enclosure around its controls.");
+  }
   bool tryBuild(){
+    const double startWidth=spec.width,startDepth=spec.depth;
     for(int attempt=0;attempt<14;attempt++){
       parts.clear();used.clear();warnings.clear();
-      try{build();if(attempt>0)warnings.push_back("Automatically enlarged enclosure to fit all controls.");return true;}
+      try{
+        build();fitAutoBoard();
+        if(attempt>0 && (spec.width>startWidth+1e-6 || spec.depth>startDepth+1e-6))
+          warnings.push_back("Automatically enlarged enclosure to fit all controls.");
+        return true;
+      }
       catch(const runtime_error&){
         if(spec.fixedWidth&&spec.fixedDepth)throw;
         if(attempt==13)throw;

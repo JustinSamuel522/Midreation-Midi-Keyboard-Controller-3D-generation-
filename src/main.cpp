@@ -706,37 +706,64 @@ struct Mesh {
         roundedPrism(x+3.8,deck-.9,z+3.8,w-7.6,.9,max(1.0,panelDepth-3.2),
                      8.5,.27,shade(c,1.07));
       }
-      // MIDREATION_WHEEL_HOUSING_V1
-      // A real keyboard's pitch/mod assembly is inset into a dedicated side
-      // housing. A full-height deck here would make the wheels float; this
-      // lower pod joins the high rear control platform and the keybed cheek.
-      if(l.spec.pitch+l.spec.mod>0){
-        constexpr double podTop = 32.5; // wheel-well top, below control deck
-        double lastWheel=keyBack;
-        for(const Part &wheel:l.parts)if(wheel.type=="wheel")
-          lastWheel=max(lastWheel,wheel.z+wheel.d);
-        const double podX=x+5.5;
-        const double podRight=keyLeft-6.9; // overlaps inner keybed cheek
-        const double podStart=panelFront-3.7; // joins upper deck
-        const double podEnd=min(z+d-10.0,max(keyBack+37.0,lastWheel+7.0));
-        if(podRight-podX>12.0 && podEnd-podStart>10.0){
-          // Cast lower wheel housing, physically connected to both shells.
-          roundedPrism(podX,lowShellTop-1.25,podStart,
-                       podRight-podX,podTop-(lowShellTop-1.25),
-                       podEnd-podStart,5.2,1.35,shade(c,.97));
-          // Outer raised cheek: conceals the exposed side of the join.
-          const double cheekEnd=min(z+d-4.8,keyFront+6.5);
-          roundedPrism(x+1.8,lowShellTop-1.25,podStart-1.5,
-                       7.8,deck-(lowShellTop-1.25),
-                       cheekEnd-(podStart-1.5),2.6,.85,side);
-          // Satin-finished upper shoulder behind the wheel openings.
-          // The shoulder continues the front edge of the control housing.
-          roundedPrism(podX,deck-3.0,podStart-4.5,
-                       podRight-podX,3.0,5.5,1.5,.55,shade(c,.91));
-          // Short dark seam at the end of the wheel pod, not a transparent gap.
-          roundedPrism(podX+2.0,podTop-.6,podEnd-1.7,
-                       max(1.0,podRight-podX-4.0),.65,1.15,.45,.15,
-                       shade(color("black"),.66));
+      // MIDREATION_FLUSH_WHEEL_POD_V3
+      // Flush left-hand side housing: same 45-mm mounting plane as rear controls.
+      // Always present, including on keyboards with pitch=0 and mod=0.
+      // Aperture geometry is generated from the actual procedural wheel parts.
+      {
+        const double podX=x+1.8;
+        const double podRight=keyLeft-3.3;  // joins raised inner keybed cheek
+        const double podStart=max(z+1.8,panelFront-5.5);
+        const double podEnd=min(z+d-4.5,keyFront+6.0);
+        const double lowerY=lowShellTop-1.1;
+        const double recessY=deck-16.0; // true well floor below the wheel arc
+        if(podRight-podX>14.0 && podEnd-podStart>14.0){
+          // Structural core and enclosed exterior (no exposed void beneath).
+          roundedPrism(podX,lowerY,podStart,
+                       podRight-podX,recessY-lowerY,podEnd-podStart,
+                       3.4,1.15,shade(c,.98));
+
+          vector<Rect> wells;
+          for(const Part &wheel:l.parts)if(wheel.type=="wheel"){
+            // Wheel opening is narrower than its mounting area so each wheel
+            // has a solid surround rather than a disconnected shallow shelf.
+            const double slotW=min(wheel.w-3.0,max(14.0,wheel.w*.68));
+            const double xa=max(podX+2.2,wheel.x+wheel.w*.5-slotW*.5);
+            const double xb=min(podRight-2.2,wheel.x+wheel.w*.5+slotW*.5);
+            const double za=max(podStart+2.0,wheel.z+2.0);
+            const double zb=min(podEnd-2.0,wheel.z+wheel.d-2.0);
+            if(xb-xa>8.0 && zb-za>8.0)wells.push_back({xa,za,xb-xa,zb-za});
+          }
+
+          // Partition a planar deck along hole edges; skip cells inside wells.
+          // No CSG library is required and the top is exactly deck-high.
+          vector<double> xs{podX,podRight},zs{podStart,podEnd};
+          for(const Rect &r:wells){
+            xs.push_back(r.x);xs.push_back(r.x+r.w);
+            zs.push_back(r.z);zs.push_back(r.z+r.d);
+          }
+          auto distinct=[](vector<double>&values){
+            sort(values.begin(),values.end());
+            values.erase(unique(values.begin(),values.end(),
+              [](double a,double b){return fabs(a-b)<.001;}),values.end());
+          };
+          distinct(xs);distinct(zs);
+          for(size_t i=0;i+1<xs.size();++i){
+            for(size_t j=0;j+1<zs.size();++j){
+              const double ax=xs[i],bx=xs[i+1],az=zs[j],bz=zs[j+1];
+              if(bx-ax<.001 || bz-az<.001)continue;
+              const double mx=(ax+bx)*.5,mz=(az+bz)*.5;
+              bool opening=false;
+              for(const Rect &r:wells)
+                if(mx>r.x && mx<r.x+r.w && mz>r.z && mz<r.z+r.d)
+                  {opening=true;break;}
+              if(!opening)cube(ax,recessY,az,bx-ax,deck-recessY,bz-az,
+                               shade(c,1.07));
+            }
+          }
+          // Narrow satin front edge, continuously cast with the left housing.
+          roundedPrism(podX+1.1,deck-1.05,podEnd-2.3,
+                       podRight-podX-2.2,1.05,1.6,.7,.25,shade(c,.91));
         }
       }
       // Rear keybed cover: the lip extends ~15 mm over the backs of the black
@@ -1026,24 +1053,38 @@ struct Mesh {
         rod(a,b,1.8,1.2,shade(color("silver"),1.03),18);
         cylinder(b.x,deck+15,b.z,2.6,2.9,shade(color("steel"),.93),20);
       }else if(p.type=="wheel"){
-        // MIDREATION_WHEEL_HOUSING_V1 (continued): a recessed wheel, not a
-        // vertical cylinder balanced on the high control panel.
+        // MIDREATION_FLUSH_WHEEL_POD_V3: wheel rises through a REAL well in
+        // the keyboard's flush upper shell. No dropped side shelf or floating
+        // disc; the wheel's lower half is hidden inside the enclosure.
         const bool keyboard=l.spec.keys>0;
-        const double wellTop=keyboard?32.5:deck;
+        const double surface=deck;
         const double r=min(w*.33,d*.40);
-        // Black well with a thin satin-metal perimeter and a deep central
-        // opening. On keyboards it is flush with the lower side pod.
-        roundedPrism(x-.65,wellTop-.17,z-.5,w+1.3,1.05,d+1.,3.5,.38,
-                     shade(color("steel"),.44));
-        roundedPrism(x+1.15,wellTop+.86,z+1.0,w-2.3,.19,d-2.0,2.65,.07,
-                     shade(color("black"),.49));
-        roundedPrism(cx-5.6,wellTop+1.02,cz-r*.84,11.2,.16,r*1.68,1.8,.05,
-                     shade(color("black"),.34));
-        // Hide the lower wheel arc inside the case. Only the knurled upper
-        // part rises through the bezel; use dark molded rubber, not neon discs.
-        const double wheelCenter=keyboard?wellTop-3.0:deck+1.0;
+        if(keyboard){
+          const double slotW=min(w-3.0,max(14.0,w*.68));
+          const double slotX=cx-slotW*.5;
+          // Dark well floor, approximately 16 mm below the metal deck.
+          roundedPrism(slotX+.35,surface-15.85,z+2.15,
+                       slotW-.7,.35,d-4.3,1.0,.09,
+                       shade(color("black"),.43));
+          // Low-profile metallic seam outlining the true aperture.
+          const Vec3 rim=shade(color("steel"),.51);
+          roundedPrism(slotX-.7,surface+.025,z+1.65,
+                       .7,.22,d-3.3,.3,.05,rim);
+          roundedPrism(slotX+slotW,surface+.025,z+1.65,
+                       .7,.22,d-3.3,.3,.05,rim);
+          roundedPrism(slotX-.2,surface+.025,z+1.65,
+                       slotW+.4,.22,.45,.15,.045,rim);
+          roundedPrism(slotX-.2,surface+.025,z+d-2.1,
+                       slotW+.4,.22,.45,.15,.045,rim);
+        }else{
+          // Standalone boards retain their original wheel mounting behavior.
+          roundedPrism(x-.65,surface-.17,z-.5,w+1.3,1.05,d+1.,3.5,.38,
+                       shade(color("steel"),.44));
+          roundedPrism(x+1.15,surface+.86,z+1.0,w-2.3,.19,d-2.0,2.65,.07,
+                       shade(color("black"),.49));
+        }
+        const double wheelCenter=keyboard?surface-2.5:surface+1.0;
         verticalWheel(cx,wheelCenter,cz,r,8.8,shade(color("black"),1.35));
-        // Small color-coded marker distinguishes pitch and modulation wheels.
         rod({cx-2.7,wheelCenter+r+.22,cz},
             {cx+2.7,wheelCenter+r+.22,cz},.33,.33,shade(c,.94),8);
       }else if(p.type=="white_key")keyWhite(p,keyProfile);

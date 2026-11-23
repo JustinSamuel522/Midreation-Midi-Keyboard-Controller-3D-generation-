@@ -40,12 +40,11 @@ class WheelHousingTests(unittest.TestCase):
                          if wheel["x"]+4 < x < wheel["x"]+wheel["w"]-4
                          and wheel["z"]+3 < z < wheel["z"]+wheel["d"]-3]
             self.assertTrue(in_region)
-            # Wheel tops protrude above the well, but remain below the 45-mm
-            # main control deck (the old floating discs reached ~58 mm).
-            self.assertGreater(max(in_region), 38.0)
-            self.assertLess(max(in_region), 44.6)
-            # The surrounding housing really exists at this level.
-            self.assertTrue(any(31.5 < height < 33.6 for height in in_region))
+            # A wheel now emerges through the full-height 45-mm deck.
+            # The lower arc sits in the deep 29-mm well, not on a shelf.
+            self.assertGreater(max(in_region), 46.0)
+            self.assertLess(max(in_region), 55.0)
+            self.assertTrue(any(height < 38.0 for height in in_region))
 
     def test_join_fills_side_gap(self):
         model, vertices = generate(

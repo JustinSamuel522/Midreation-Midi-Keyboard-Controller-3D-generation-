@@ -1,0 +1,8 @@
+# Midreation procedural CGI showcase: 37-key workstation in vivid red.
+# No Blender or third-party renderer required.
+CONTROLLERTYPE controller=keyboard-synth
+STYLE color=bright-red material=aluminum panels=rounded corner_radius=14 keybed_overhang=16
+KEYBED keys=37 type=semi-weighted
+KNOBS count=4 zone=top-left layout=row
+FADERS count=4 zone=center layout=row
+BUTTONS count=4 zone=top-right layout=row

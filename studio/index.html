@@ -60,10 +60,10 @@ main{max-width:1560px;margin:auto;padding:25px 24px 42px;display:grid;grid-templ
    <div class="field-row"><div class="field"><label for="width">Body width (mm)</label><input type="number" id="width" min="180" max="4000" placeholder="Auto" /></div><div class="field"><label for="depth">Body depth (mm)</label><input type="number" id="depth" min="130" max="1800" placeholder="Auto" /></div></div>
    <div class="toggle-row"><input type="checkbox" id="pitch" /><label for="pitch" style="margin:0">Include a pitch-bend wheel</label></div>
    <div class="toggle-row"><input type="checkbox" id="mod" /><label for="mod" style="margin:0">Include a modulation wheel</label></div>
-   <div class="tiny-note">Leave dimensions blank to fit a compact, centered enclosure around your controls. Specify either dimension to lock it. You can return to any step and regenerate.</div>
+   <div class="tiny-note">Leave dimensions blank for a compact, centered enclosure. Keyboards start near 265 mm deep and can grow to fit more controls. Specify either dimension to lock it.</div>
   </div>
  </div>
- <details class="advanced" id="advanced"><summary>Advanced: view or edit the procedural grammar</summary><p>The friendly builder writes this specification automatically. For class demonstrations, you can edit it directly.</p><textarea id="grammar" spellcheck="false" aria-label="Generated procedural grammar"></textarea><div class="toggle-row"><input type="checkbox" id="useCustom" /><label for="useCustom" style="margin:0">Use my edited grammar when generating</label></div></details>
+ <details class="advanced" id="advanced"><summary>Advanced: view or edit the procedural grammar</summary><p>The friendly builder writes this specification automatically. For class demonstrations, you can edit it directly. Optional shape parameters: STYLE corner_radius=12.5 keybed_overhang=15.5.</p><textarea id="grammar" spellcheck="false" aria-label="Generated procedural grammar"></textarea><div class="toggle-row"><input type="checkbox" id="useCustom" /><label for="useCustom" style="margin:0">Use my edited grammar when generating</label></div></details>
  <div class="footnav"><button id="back" class="btn">← Back</button><button id="next" class="btn primary">Choose controls →</button></div>
  <div id="status" class="status" role="status">Start by choosing the instrument you'd like to build.</div>
 </section>
@@ -95,7 +95,7 @@ const controls=[
  {id:'ribbons',name:'Ribbon strips',glyph:'━',cmd:'RIBBON',max:4,group:'extra'},
  {id:'ports',name:'Connections',glyph:'⇄',cmd:'PORTS',max:8,group:'extra'}
 ];
-const palettes=[{name:'Soft navy',value:'navy',hex:'#1a2647'},{name:'Midnight black',value:'black',hex:'#11131b'},{name:'Cloud white',value:'white',hex:'#edeff7'},{name:'Silver',value:'silver',hex:'#c1c5d4'},{name:'Mint teal',value:'teal',hex:'#38c2b8'},{name:'Lavender',value:'purple',hex:'#a17afa'},{name:'Ocean blue',value:'blue',hex:'#4280e8'},{name:'Warm brown',value:'wood',hex:'#8d5c3b'}];
+const palettes=[{name:'Soft navy',value:'navy',hex:'#1a2647'},{name:'Midnight black',value:'black',hex:'#11131b'},{name:'Bright red',value:'bright-red',hex:'#f5131c'},{name:'Cloud white',value:'white',hex:'#edeff7'},{name:'Silver',value:'silver',hex:'#c1c5d4'},{name:'Mint teal',value:'teal',hex:'#38c2b8'},{name:'Lavender',value:'purple',hex:'#a17afa'},{name:'Ocean blue',value:'blue',hex:'#4280e8'},{name:'Warm brown',value:'wood',hex:'#8d5c3b'}];
 const profiles={
  board:{knobs:8,faders:4,buttons:6,pads:4,displays:0,clicky:0,footswitches:0,leds:0,switches:0},
  'keyboard-synth':{knobs:8,faders:4,buttons:6,pads:8,displays:1,clicky:4,footswitches:0,leds:0,switches:0},
@@ -200,16 +200,75 @@ $('mode3d').onclick=()=>setMode('3d');$('mode2d').onclick=()=>setMode('2d');$('r
 // WebGL preview: reads the same geometry metadata produced by the C++ engine.
 // Soft showroom lighting: hemisphere fill, two directional lights, and a
 // restrained specular highlight so chamfers read as rounded physical parts.
-const vshader=`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor; uniform mat4 uMVP; varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition; void main(){gl_Position=uMVP*vec4(aPos,1.0);vColor=aColor;vNormal=normalize(aNormal);vPosition=aPos;}`;
-const fshader=`precision highp float; varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition; uniform vec3 uEye;
+// Midreation photorealism: physically motivated metal/plastic/glass response.
+// OBJ colors remain backwards compatible; extra material values are in comments.
+// MIDREATION_CGI_REALISM_V2 — procedural real-time CGI materials
+const vshader=`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;
+attribute vec2 aMR; uniform mat4 uMVP;
+varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition;
+varying vec2 vMR;
+void main(){gl_Position=uMVP*vec4(aPos,1.0);vColor=aColor;
+vNormal=normalize(aNormal);vPosition=aPos;vMR=aMR;}`;
+const fshader=`precision highp float;
+varying vec3 vColor; varying vec3 vNormal; varying vec3 vPosition;
+varying vec2 vMR; uniform vec3 uEye;
+uniform float uFloor;uniform vec2 uBoardSize;
+const float PI=3.14159265359;
+float saturate(float a){return clamp(a,0.0,1.0);}
+vec3 tonemap(vec3 c){return c/(c+vec3(0.85));}
+float D_GGX(float noh,float rough){
+ float a=rough*rough;float a2=a*a;float d=noh*noh*(a2-1.0)+1.0;
+ return a2/max(PI*d*d,0.0001);
+}
+float G_Schlick(float nv,float k){return nv/max(nv*(1.0-k)+k,0.0001);}
+vec3 BRDF(vec3 n,vec3 v,vec3 ld,vec3 lightColor,
+          vec3 base,float metal,float rough){
+ vec3 h=normalize(v+ld);
+ float nv=saturate(dot(n,v)), nl=saturate(dot(n,ld));
+ float nh=saturate(dot(n,h)), vh=saturate(dot(v,h));
+ float k=pow(rough+1.0,2.0)/8.0;
+ vec3 f0=mix(vec3(0.04),base,metal);
+ vec3 fresnel=f0+(vec3(1.0)-f0)*pow(1.0-vh,5.0);
+ vec3 spec=D_GGX(nh,rough)*G_Schlick(nv,k)*G_Schlick(nl,k)*fresnel
+           /max(4.0*nv*nl,0.0001);
+ vec3 diffuse=(vec3(1.0)-fresnel)*(1.0-metal)*base/PI;
+ return (diffuse+spec)*nl*lightColor;
+}
 void main(){
+ if(uFloor>0.5){
+   vec2 center=uBoardSize*0.5;
+   // Rounded-box signed-distance approximation: the soft shadow follows
+   // the instrument footprint rather than a circular blob at its center.
+   vec2 q=abs(vPosition.xz-center)-max(vec2(20.0),uBoardSize*.5-vec2(6.0));
+   float signedDistance=length(max(q,0.0))+min(max(q.x,q.y),0.0);
+   float contact=1.0-smoothstep(-8.0,36.0,signedDistance);
+   float ambient=exp(-max(signedDistance,0.0)*.019);
+   vec3 ground=vec3(.913,.936,.963)-vec3(.21)*contact
+               -vec3(.032)*ambient;
+   gl_FragColor=vec4(clamp(ground,0.0,1.0),1.0);return;
+ }
  vec3 n=normalize(vNormal);
- vec3 key=normalize(vec3(-0.40,0.85,0.55));
- vec3 fill=normalize(vec3(0.7,0.35,-0.4));
- float light=0.46+0.14*max(n.y,0.0)+0.50*max(dot(n,key),0.0)+0.14*max(dot(n,fill),0.0);
- vec3 h=normalize(key+normalize(uEye-vPosition));
- float glint=0.18*pow(max(dot(n,h),0.0),36.0);
- gl_FragColor=vec4(clamp(vColor*light+vec3(glint),0.0,1.0),1.0);
+ vec3 v=normalize(uEye-vPosition);
+ if(dot(n,v)<0.0)n=-n;
+ // sRGB OBJ vertex colors to approximate linear values before shading.
+ vec3 base=pow(clamp(vColor,0.001,1.0),vec3(2.2));
+ float metallic=clamp(vMR.x,0.0,1.0);
+ float roughness=clamp(vMR.y,0.085,0.96);
+ // Tiny brushed anisotropic variation, visible primarily on metallic panels.
+ float grain=sin(vPosition.x*2.73+vPosition.z*.21)*
+             sin(vPosition.x*7.89+vPosition.z*.13);
+ roughness=clamp(roughness+grain*.013*metallic,.085,.96);
+ vec3 key=normalize(vec3(-.55,.85,.54));
+ vec3 fill=normalize(vec3(.76,.57,-.35));
+ vec3 rim=normalize(vec3(.11,.51,-.85));
+ vec3 lit=base*(.29*(1.0-metallic)+.055);
+ lit+=BRDF(n,v,key,vec3(2.2,2.08,1.96),base,metallic,roughness);
+ lit+=BRDF(n,v,fill,vec3(.65,.77,1.12),base,metallic,roughness);
+ lit+=BRDF(n,v,rim,vec3(.52,.62,.75),base,metallic,roughness);
+ float fres=pow(1.0-saturate(dot(n,v)),5.0);
+ lit+=vec3(.11,.14,.19)*fres*(.35+.65*metallic);
+ // Gentle filmed highlight rolloff, not a uniformly shiny plastic look.
+ gl_FragColor=vec4(pow(clamp(tonemap(lit),0.0,1.0),vec3(1.0/2.2)),1.0);
 }`;
 function mul(a,b){const o=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++)for(let k=0;k<4;k++)o[i+4*j]+=a[i+4*k]*b[k+4*j];return o;}
 function persp(fov,asp,near,far){let f=1/Math.tan(fov/2),a=new Float32Array(16);a[0]=f/asp;a[5]=f;a[10]=(far+near)/(near-far);a[11]=-1;a[14]=2*far*near/(near-far);return a;}
@@ -223,7 +282,7 @@ class Renderer{
    const gl=this.gl;
    const shader=(type,src)=>{let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;};
    const prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vshader));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,fshader));gl.linkProgram(prog);gl.useProgram(prog);this.prog=prog;
-   this.pos=gl.getAttribLocation(prog,'aPos');this.normal=gl.getAttribLocation(prog,'aNormal');this.color=gl.getAttribLocation(prog,'aColor');this.mvp=gl.getUniformLocation(prog,'uMVP');this.eye=gl.getUniformLocation(prog,'uEye');this.buffer=gl.createBuffer();
+   this.pos=gl.getAttribLocation(prog,'aPos');this.normal=gl.getAttribLocation(prog,'aNormal');this.color=gl.getAttribLocation(prog,'aColor');this.mr=gl.getAttribLocation(prog,'aMR');this.mvp=gl.getUniformLocation(prog,'uMVP');this.eye=gl.getUniformLocation(prog,'uEye');this.isFloor=gl.getUniformLocation(prog,'uFloor');this.boardSize=gl.getUniformLocation(prog,'uBoardSize');this.buffer=gl.createBuffer();this.floorBuffer=gl.createBuffer();
    let dragging=false,lastX=0,lastY=0;canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
    canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointermove',e=>{if(!dragging)return;this.theta+=(e.clientX-lastX)*.008;this.phi=Math.max(.15,Math.min(1.52,this.phi+(e.clientY-lastY)*.007));lastX=e.clientX;lastY=e.clientY;this.draw();});
    canvas.addEventListener('wheel',e=>{e.preventDefault();this.radius*=e.deltaY>0?1.09:.91;this.radius=Math.max(120,Math.min(this.radius,7000));this.draw();},{passive:false});
@@ -247,7 +306,10 @@ class Renderer{
    for(const line of text.split('\n')){
      if(line.startsWith('v ')){
        const values=line.trim().split(/\s+/).slice(1).map(Number);
-       if(values.length>=6)vertices.push(values);
+       if(values.length>=6){
+         const data=line.split('#mr');const material=data[1]?data[1].trim().split(/\s+/).map(Number):[.10,.40];
+         vertices.push([...values.slice(0,6),...material.slice(0,2)]);
+       }
      }else if(line.startsWith('f ')){
        const ids=line.trim().split(/\s+/).slice(1,4).map(v=>Number(v.split('/')[0])-1);
        if(ids.length!==3 || ids.some(i=>i<0 || i>=vertices.length))continue;
@@ -255,23 +317,53 @@ class Renderer{
        const ab=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
        const ac=[c[0]-a[0],c[1]-a[1],c[2]-a[2]];
        const n=normalize(cross(ab,ac));
-       for(const v of [a,b,c])output.push(v[0],v[1],v[2],...n,v[3],v[4],v[5]);
+       for(const v of [a,b,c])output.push(v[0],v[1],v[2],...n,v[3],v[4],v[5],v[6]??.1,v[7]??.4);
      }
    }
    if(request!==this.loadToken)return;
    if(!output.length)throw new Error('The generated OBJ contains no triangles');
-   this.vertexCount=output.length/9;
+   this.vertexCount=output.length/11;
    const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);
    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(output),gl.STATIC_DRAW);
    this.draw();
  }
- draw(){const gl=this.gl;if(!gl||mode!=='3d')return;let canvas=this.canvas,rect=canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;
-  const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-  gl.viewport(0,0,w,h);gl.clearColor(.945,.965,.985,1);gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const target=[this.width/2,5,this.depth/2],cp=Math.cos(this.phi),sp=Math.sin(this.phi);const eye=[target[0]+this.radius*sp*Math.sin(this.theta),target[1]+this.radius*cp,target[2]+this.radius*sp*Math.cos(this.theta)];
-  const mat=mul(persp(Math.PI/3,w/h,1,15000),lookAt(eye,target,[0,1,0]));gl.useProgram(this.prog);gl.uniformMatrix4fv(this.mvp,false,mat);gl.uniform3f(this.eye,eye[0],eye[1],eye[2]);
-  gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer);gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.normal);gl.enableVertexAttribArray(this.color);gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,36,0);gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,36,12);gl.vertexAttribPointer(this.color,3,gl.FLOAT,false,36,24);gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
+ draw(){const gl=this.gl;if(!gl||mode!=='3d')return;
+  const canvas=this.canvas,rect=canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);gl.clearColor(.91,.935,.957,1);
+  gl.enable(gl.DEPTH_TEST);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const target=[this.width/2,19,this.depth/2],cp=Math.cos(this.phi),sp=Math.sin(this.phi);
+  const eye=[target[0]+this.radius*sp*Math.sin(this.theta),
+             target[1]+this.radius*cp,target[2]+this.radius*sp*Math.cos(this.theta)];
+  const mat=mul(persp(Math.PI/3,w/h,1,15000),lookAt(eye,target,[0,1,0]));
+  gl.useProgram(this.prog);gl.uniformMatrix4fv(this.mvp,false,mat);
+  gl.uniform3f(this.eye,eye[0],eye[1],eye[2]);
+  gl.uniform2f(this.boardSize,this.width,this.depth);
+  const attrs=buf=>{
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    gl.enableVertexAttribArray(this.pos);gl.enableVertexAttribArray(this.normal);
+    gl.enableVertexAttribArray(this.color);gl.enableVertexAttribArray(this.mr);
+    gl.vertexAttribPointer(this.pos,3,gl.FLOAT,false,44,0);
+    gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,44,12);
+    gl.vertexAttribPointer(this.color,3,gl.FLOAT,false,44,24);
+    gl.vertexAttribPointer(this.mr,2,gl.FLOAT,false,44,36);
+  };
+  // Matte studio cyclorama with a soft contact shadow beneath the enclosure.
+  const extentX=Math.max(200,this.width*2.0),extentZ=Math.max(200,this.depth*2.0);
+  const coords=[-extentX,-extentZ, this.width+extentX,-extentZ,
+                this.width+extentX,this.depth+extentZ,
+               -extentX,-extentZ,this.width+extentX,this.depth+extentZ,
+               -extentX,this.depth+extentZ];
+  const floor=[];
+  for(let i=0;i<12;i+=2){floor.push(coords[i],-6,coords[i+1],0,1,0,.94,.95,.97,0,.96);}
+  attrs(this.floorBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(floor),gl.DYNAMIC_DRAW);
+  gl.uniform1f(this.isFloor,1);gl.drawArrays(gl.TRIANGLES,0,6);
+  attrs(this.buffer);gl.uniform1f(this.isFloor,0);
+  if(this.vertexCount)gl.drawArrays(gl.TRIANGLES,0,this.vertexCount);
  }
+
 }
 const viewer=new Renderer($('canvas'));
 // Initial screen intentionally asks the user for preferences instead of loading a fixed example.

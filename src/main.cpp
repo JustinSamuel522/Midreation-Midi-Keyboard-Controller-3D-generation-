@@ -16,6 +16,27 @@
 #include <vector>
 using namespace std;
 constexpr double PI = 3.14159265358979323846;
+// Consistent physical surface height for the chassis, controls and keybed.
+constexpr double DECK_HEIGHT = 30.0;
+// Keyboard controls and keys intentionally have different mounting planes.
+constexpr double CONTROL_DECK_HEIGHT = 45.0;
+constexpr double KEYBED_DECK_HEIGHT = 24.0;
+// A compact keyboard begins near 265 mm deep. Additional control banks may
+// require the enclosure to grow in the normal collision-free layout solver.
+double keyboardKeyDepth(double enclosureDepth){
+  return min(148.0, max(105.0, enclosureDepth*.55));
+}
+// 88-key pianos start at A; common compact keybeds start at C. The 76-key
+// profile starts on E, matching a common extended-keyboard layout.
+int keyboardStartSemitone(int count){return count==88?9:(count==76?4:0);}
+bool blackKeySemitone(int semitone){
+  const int p=(semitone%12+12)%12;
+  return p==1||p==3||p==6||p==8||p==10;
+}
+int keyboardWhiteCount(int count){
+  int n=0;for(int i=0;i<count;i++)if(!blackKeySemitone(i+keyboardStartSemitone(count)))++n;
+  return n;
+}
 namespace fs = std::filesystem;
 
 struct Vec3 {double x=0,y=0,z=0;};
@@ -24,7 +45,7 @@ struct Rect {double x,z,w,d;};
 struct Group {string type,zone,color; int count=0,cols=0; double w=0,d=0,h=0,space=8; string layout="auto";};
 struct Spec {
   string kind="board",color="navy",material="aluminum",panels="rounded",keyAction="synth",keyColor="ivory";
-  double width=0,depth=0,tilt=0; bool fixedWidth=false,fixedDepth=false;
+  double width=0,depth=0,tilt=0,caseRadius=12.5,keybedOverhang=15.5; bool fixedWidth=false,fixedDepth=false;
   int keys=0; bool keySpecified=false;
   vector<Group> groups;
   int pitch=0,mod=0;
@@ -60,6 +81,8 @@ Spec parse(const string&path){
       } else if(cmd=="style"){
         s.color=get(a,"color",get(a,"body_color",s.color));s.material=get(a,"material",s.material);
         s.panels=get(a,"panels",get(a,"corners",s.panels));s.tilt=getDouble(a,"tilt",s.tilt);
+        s.caseRadius=getDouble(a,"corner_radius",s.caseRadius);
+        s.keybedOverhang=getDouble(a,"keybed_overhang",s.keybedOverhang);
       } else if(cmd=="keybed"){
         s.keys=getInt(a,"keys",49);s.keySpecified=true;
         s.keyAction=get(a,"type",get(a,"action",s.keyAction));
@@ -117,10 +140,14 @@ Spec parse(const string&path){
   if(s.kind.find("foot")!=string::npos && s.keys>0)throw runtime_error("Foot controllers cannot include a piano keybed in this prototype");
   if(s.keys<0||s.keys>88)throw runtime_error("Key count must be 0..88");
   if(s.tilt<-20||s.tilt>25)throw runtime_error("Tilt must be from -20 to 25 degrees");
+  if(s.caseRadius<2||s.caseRadius>25)throw runtime_error("corner_radius must be 2..25 mm");
+  if(s.keybedOverhang<6||s.keybedOverhang>23)throw runtime_error("keybed_overhang must be 6..23 mm");
   if(s.fixedWidth && (s.width<180||s.width>4000))throw runtime_error("Width must be 180..4000 mm");
   if(s.fixedDepth && (s.depth<130||s.depth>1800))throw runtime_error("Depth must be 130..1800 mm");
-  if(!s.fixedWidth)s.width=(s.keys?max(340.,s.keys*16.0+110.):(s.kind.find("foot")!=string::npos?360.:420.));
-  if(!s.fixedDepth)s.depth=(s.keys?340.:(s.kind.find("foot")!=string::npos?200.:260.));
+  if(!s.fixedWidth)s.width=(s.keys?
+      max(340.,keyboardWhiteCount(s.keys)*23.5+((s.pitch+s.mod)?80.:24.)+20.):
+      (s.kind.find("foot")!=string::npos?360.:420.));
+  if(!s.fixedDepth)s.depth=(s.keys?265.:(s.kind.find("foot")!=string::npos?200.:260.));
   return s;
 }
 
@@ -137,16 +164,18 @@ struct Layout {
     if(spec.keys){
       const int n=spec.keys;
       double side=(spec.pitch+spec.mod)?80:24;
-      x=side; z=spec.depth*.55;
-      w=spec.width-side-20;d=spec.depth*.39;
+      x=side;
+       d=keyboardKeyDepth(spec.depth); // target ~146 mm playable white-key length
+       z=spec.depth-d-12.;        // keys finish close to the front lip
+       w=spec.width-side-20.;
       if(d<65)throw runtime_error("Not enough depth for keybed");
-      int whites=0;for(int i=0;i<n;i++)if(!isBlack(i))whites++;
+      int whites=keyboardWhiteCount(n);
       double keyW=w/whites;
       if(keyW<10.5)throw runtime_error("Keybed cannot fit "+to_string(n)+" keys. Increase width.");
       used.push_back({x-3,z-3,w+6,d+6});
       int wi=0;
       for(int i=0;i<n;i++){
-        if(!isBlack(i)){add("white_key","keybed",spec.keyColor,x+wi*keyW,z,keyW-.65,d,5);wi++;}
+        if(!blackKeySemitone(i+keyboardStartSemitone(n))){add("white_key","keybed",spec.keyColor,x+wi*keyW,z,keyW-.65,d,5);wi++;}
         else add("black_key","keybed","black",x+wi*keyW-keyW*.33,z,keyW*.66,d*.64,11);
       }
     }
@@ -165,7 +194,9 @@ struct Layout {
       }
     }
   }
-  double topLimit() const {return spec.keys?spec.depth*.53:spec.depth-margin;}
+  double topLimit() const {
+    return spec.keys?spec.depth-keyboardKeyDepth(spec.depth)-20.:spec.depth-margin;
+  }
   pair<double,double> preferred(string zone,double gw,double gd) const {
     string z=lower(zone);
     double x=(spec.width-gw)/2.,y=margin;
@@ -462,7 +493,8 @@ struct Layout {
 
 Vec3 color(string c){
   static const map<string,Vec3> colors={{"navy",{.10,.15,.28}},{"black",{.065,.073,.105}},{"dark",{.065,.073,.105}},
-  {"white",{.93,.94,.97}},{"ivory",{.93,.93,.89}},{"red",{.90,.26,.32}},{"blue",{.26,.50,.91}},
+  {"white",{.93,.94,.97}},{"ivory",{.93,.93,.89}},{"red",{.90,.26,.32}},
+  {"bright-red",{.96,.075,.11}},{"blue",{.26,.50,.91}},
   {"cyan",{.31,.84,.83}},{"teal",{.22,.76,.72}},{"purple",{.63,.48,.98}},{"pink",{.92,.40,.73}},
   {"steel",{.62,.69,.77}},{"silver",{.75,.77,.83}},{"slate",{.34,.43,.60}},{"wood",{.55,.36,.23}},
   {"screen",{.075,.35,.48}},{"green",{.32,.81,.55}},{"gold",{.91,.70,.31}}};
@@ -471,15 +503,16 @@ Vec3 color(string c){
   return {.31,.40,.55};
 }
 string css(string c){Vec3 v=color(c);ostringstream f;f<<"#"<<hex<<setfill('0');for(double a:{v.x,v.y,v.z})f<<setw(2)<<int(max(0.,min(255.,round(a*255.))));return f.str();}
-struct Vertex {Vec3 p,n,c;};
+struct Vertex {Vec3 p,n,c; double metal=0.08, roughness=0.42;};
 struct Mesh {
   vector<Vertex> vertices;int faceCount=0;double angle=0;
+  double currentMetal=.12,currentRoughness=.36;
   static Vec3 shade(Vec3 c,double f){return {min(1.,max(0.,c.x*f)),min(1.,max(0.,c.y*f)),min(1.,max(0.,c.z*f))};}
   void tri(Vec3 a,Vec3 b,Vec3 c,Vec3 rgb){
     Vec3 u{b.x-a.x,b.y-a.y,b.z-a.z},v{c.x-a.x,c.y-a.y,c.z-a.z};
     Vec3 n{u.y*v.z-u.z*v.y,u.z*v.x-u.x*v.z,u.x*v.y-u.y*v.x};
     double l=sqrt(n.x*n.x+n.y*n.y+n.z*n.z);if(l>1e-9){n.x/=l;n.y/=l;n.z/=l;}
-    for(auto p:{a,b,c})vertices.push_back({p,n,rgb});
+    for(auto p:{a,b,c})vertices.push_back({p,n,rgb,currentMetal,currentRoughness});
     faceCount++;
   }
   void quad(Vec3 a,Vec3 b,Vec3 c,Vec3 d,Vec3 rgb){tri(a,b,c,rgb);tri(a,c,d,rgb);}
@@ -520,7 +553,7 @@ struct Mesh {
       quad(xy(p,outer),xy(p,inner),xy(q,inner),xy(q,outer),col);
     }
   }
-  vector<Vec3> outline(double x,double z,double w,double d,double r,double y,int steps=6){
+  vector<Vec3> outline(double x,double z,double w,double d,double r,double y,int steps=10){
     r=max(0.,min({r,w*.49,d*.49}));
     vector<Vec3> out;out.reserve((steps+1)*4);
     array<tuple<double,double,double>,4> cs={
@@ -570,13 +603,14 @@ struct Mesh {
     }
   }
   void keyWhite(const Part&p,const string&profile){
-    double x=p.x,z=p.z,w=p.w,d=p.d,deck=19.;
+    double x=p.x,z=p.z,w=p.w,d=p.d,deck=KEYBED_DECK_HEIGHT;
     Vec3 ivory=shade(color(p.color),1.035);
     if(profile=="waterfall"){
       // Synth-action / unweighted 'waterfall' keys: smooth continuous rounded nose.
       // Deliberately NO protruding lower piano-key apron/lip.
       roundedPrism(x,deck,z,w,5.1,d,1.7,1.1,ivory);
       roundedPrism(x+.30,deck+4.2,z+.8,w-.60,1.25,d-1.65,1.1,.37,shade(ivory,1.07));
+      roundedPrism(x+.40,deck+5.48,z+2.2,w-.80,.10,1.2,.23,.04,shade(ivory,.83));
     }else{
       const bool weighted=(profile=="weighted");
       double baseH=weighted?7.4:6.2;
@@ -593,7 +627,7 @@ struct Mesh {
     }
   }
   void keyBlack(const Part&p,const string&profile){
-    double x=p.x,z=p.z,w=p.w,d=p.d,deck=19.;
+    double x=p.x,z=p.z,w=p.w,d=p.d,deck=KEYBED_DECK_HEIGHT;
     double thick=profile=="waterfall"?7.0:8.6;
     Vec3 base=shade(color("black"),1.34);
     // Black-key heels are wider than the gently sloping playing surface.
@@ -601,6 +635,7 @@ struct Mesh {
     roundedPrism(x+.8,deck+4.6+thick-.5,z+1,w-1.6,1.1,d-5,1.1,.45,shade(base,1.24));
     // Sloped bevel at the playing tip for a molded keycap instead of a box.
     roundedPrism(x+1.0,deck+4.6+thick-1.9,z+d-8,w-2,1.6,6.4,1.3,.65,shade(base,1.1));
+    roundedPrism(x+1.4,deck+4.6+thick+.55,z+3,w-2.8,.12,d-13,1.0,.04,shade(base,1.14));
   }
   // Vertically mounted wheel: unlike an upright knob, the curved tread rotates
   // in the Y-Z plane. Upper half visibly emerges from its recessed well.
@@ -621,9 +656,258 @@ struct Mesh {
       rod(a0,b0,.32,.32,shade(col,1.32),6);
     }
   }
+  // MIDREATION_RECESSED_KEYBED_V2
+  // Enclosure heights are tied to the mounting planes, so controls do not float.
+  // Keyboard instruments use a raised *rear* control housing and a physically
+  // distinct keybed tray. Both are constructed as meshes; this is not a shader trick.
+  void renderChassis(const Layout &l,const Part &p,Vec3 c,double deck){
+    const double x=p.x,z=p.z,w=p.w,d=p.d;
+    const Vec3 side=l.spec.panels=="wood"?color("wood"):shade(c,.71);
+    if(!l.spec.keys){
+      // Standard desktop/foot controller: a single full-size top deck. Its
+      // outer shell always rises to the same mounting height as the controls.
+      roundedPrism(x,0,z,w,max(4.,deck-3.9),d,l.spec.caseRadius,3.8,shade(c,.77));
+      roundedPrism(x+1.8,deck-5.6,z+1.8,w-3.6,5.6,d-3.6,10.0,1.35,shade(c,1.12));
+      roundedPrism(x+1.8,3.8,z+14,5.5,max(5.,deck-10.7),d-28,2.4,1.0,side);
+      roundedPrism(x+w-7.3,3.8,z+14,5.5,max(5.,deck-10.7),d-28,2.4,1.0,side);
+      roundedPrism(x+7,5.1,z+d-5.3,w-14,max(5.,deck-16.4),3.2,1.2,.85,shade(c,.57));
+      roundedPrism(x+9,deck-6.8,z+d-4.8,w-18,.75,2.2,.9,.18,shade(color("black"),.82));
+      for(double px:{x+9,x+w-9})for(double pz:{z+10,z+d-10}){
+        cylinder(px,deck,pz,1.8,.35,color("steel"),16);
+        cube(px-1,deck+.36,pz-.20,2,.16,.4,color("dark"));
+      }
+      for(int i=0;i<7&&w>300;i++){
+        double px=x+w*.39+i*8.5;
+        roundedPrism(px,deck+.05,z+5,4.2,.17,12,1,.08,shade(c,.48));
+      }
+    }else{
+      // Locate the actual generated keybed, rather than hardcoding 61/88 keys.
+      double keyLeft=1e100,keyRight=-1e100,keyBack=1e100,keyFront=-1e100;
+      for(const Part &k:l.parts)if(k.type=="white_key"){
+        keyLeft=min(keyLeft,k.x);keyRight=max(keyRight,k.x+k.w);
+        keyBack=min(keyBack,k.z);keyFront=max(keyFront,k.z+k.d);
+      }
+      if(keyLeft>=keyRight)return;
+      const double keyW=keyRight-keyLeft,keyD=keyFront-keyBack;
+      const double lowShellTop=18.7;
+      // Lower case is continuous, but does not fill the height below the rear
+      // control panel. The keys are mounted a few millimeters above a dark tray.
+      roundedPrism(x,0,z,w,lowShellTop,d,l.spec.caseRadius,2.6,shade(c,.74));
+      roundedPrism(keyLeft-4.5,lowShellTop-1.1,keyBack-3.6,
+                   keyW+9.0,KEYBED_DECK_HEIGHT-lowShellTop+.45,keyD+5.5,
+                   2.8,.65,shade(color("black"),.80));
+      // Upper control platform: only occupies space *behind* the keys. Its
+      // upper surface and all encoders/faders share CONTROL_DECK_HEIGHT.
+      const double panelFront=keyBack-7.0;
+      const double panelDepth=panelFront-(z+1.8);
+      if(panelDepth>2.0){
+        roundedPrism(x+1.8,lowShellTop-1.1,z+1.8,w-3.6,
+                     deck-(lowShellTop-1.1),panelDepth,10.0,2.0,shade(c,1.10));
+        roundedPrism(x+3.8,deck-.9,z+3.8,w-7.6,.9,max(1.0,panelDepth-3.2),
+                     8.5,.27,shade(c,1.07));
+      }
+      // MIDREATION_WHEEL_HOUSING_V1
+      // A real keyboard's pitch/mod assembly is inset into a dedicated side
+      // housing. A full-height deck here would make the wheels float; this
+      // lower pod joins the high rear control platform and the keybed cheek.
+      if(l.spec.pitch+l.spec.mod>0){
+        constexpr double podTop = 32.5; // wheel-well top, below control deck
+        double lastWheel=keyBack;
+        for(const Part &wheel:l.parts)if(wheel.type=="wheel")
+          lastWheel=max(lastWheel,wheel.z+wheel.d);
+        const double podX=x+5.5;
+        const double podRight=keyLeft-6.9; // overlaps inner keybed cheek
+        const double podStart=panelFront-3.7; // joins upper deck
+        const double podEnd=min(z+d-10.0,max(keyBack+37.0,lastWheel+7.0));
+        if(podRight-podX>12.0 && podEnd-podStart>10.0){
+          // Cast lower wheel housing, physically connected to both shells.
+          roundedPrism(podX,lowShellTop-1.25,podStart,
+                       podRight-podX,podTop-(lowShellTop-1.25),
+                       podEnd-podStart,5.2,1.35,shade(c,.97));
+          // Outer raised cheek: conceals the exposed side of the join.
+          const double cheekEnd=min(z+d-4.8,keyFront+6.5);
+          roundedPrism(x+1.8,lowShellTop-1.25,podStart-1.5,
+                       7.8,deck-(lowShellTop-1.25),
+                       cheekEnd-(podStart-1.5),2.6,.85,side);
+          // Satin-finished upper shoulder behind the wheel openings.
+          // The shoulder continues the front edge of the control housing.
+          roundedPrism(podX,deck-3.0,podStart-4.5,
+                       podRight-podX,3.0,5.5,1.5,.55,shade(c,.91));
+          // Short dark seam at the end of the wheel pod, not a transparent gap.
+          roundedPrism(podX+2.0,podTop-.6,podEnd-1.7,
+                       max(1.0,podRight-podX-4.0),.65,1.15,.45,.15,
+                       shade(color("black"),.66));
+        }
+      }
+      // Rear keybed cover: the lip extends ~15 mm over the backs of the black
+      // keys but stays physically ABOVE their molded top surfaces.
+      roundedPrism(keyLeft-7.0,deck-4.2,keyBack-7.5,keyW+14.0,4.2,
+                   7.5+l.spec.keybedOverhang,
+                   2.3,1.0,shade(c,.96));
+      roundedPrism(keyLeft-5.8,deck-4.32,keyBack+13.1,keyW+11.6,.33,1.15,
+                   .45,.08,shade(color("black"),.83));
+      // Raised end cheeks and front fallboard lip frame the exposed white keys.
+      // Their x/z footprints stay outside the playable key rectangles.
+      roundedPrism(keyLeft-9.5,lowShellTop-1.0,keyBack-1.5,6.2,
+                   deck-lowShellTop-3.2,keyD+6.5,2.0,1.0,side);
+      roundedPrism(keyRight+3.3,lowShellTop-1.0,keyBack-1.5,6.2,
+                   deck-lowShellTop-3.2,keyD+6.5,2.0,1.0,side);
+      // Complete the outer keyboard end cheeks so their rear ends
+      // overlap the raised deck. This closes the seam at the keybed sides.
+      const double jointStart=panelFront-3.7;
+      const double jointEnd=min(z+d-4.8,keyFront+6.5);
+      const double jointDepth=jointEnd-jointStart;
+      if(jointDepth>2.0){
+        const double rightStart=keyRight+3.1;
+        const double rightWidth=x+w-1.8-rightStart;
+        if(rightWidth>1.5)
+          roundedPrism(rightStart,lowShellTop-1.2,jointStart,
+                       rightWidth,deck-(lowShellTop-1.2),jointDepth,
+                       2.0,.65,side);
+      }
+      roundedPrism(x+6.5,4.7,z+d-8.4,w-13,14.9,5.3,1.6,1.0,shade(c,.58));
+      roundedPrism(x+8.2,19.5,z+d-6.4,w-16.4,.7,1.9,.5,.18,
+                   shade(color("black"),.70));
+      // A narrow rear top seam and a few recessed fasteners emphasize the
+      // join between the raised control housing and the lower keybed shell.
+      if(panelDepth>22.0){
+        roundedPrism(x+8.0,deck+.04,z+6,w-16,.16,1.15,.4,.05,shade(c,.63));
+        for(double px:{x+10,x+w-10}){
+          cylinder(px,deck+.02,z+10,1.7,.32,color("steel"),16);
+          cube(px-.9,deck+.35,z+9.82,1.8,.14,.36,color("dark"));
+        }
+      }
+    }
+    // Rubber feet work for both controller-only boards and keyboards.
+    for(double fx:{x+23,x+w-23})for(double fz:{z+20,z+d-20})
+      roundedPrism(fx-11,-4.0,fz-7,22.,4.,14.,3.0,.8,shade(color("black"),.63));
+  }
+
+  // MIDREATION_PHOTOREAL_MATERIALS_V1 — subtle manufactured details
+  // Paint, rubber, glass and aluminum carry their own optical properties.
+  void photorealDetails(const Layout &l,const Part &body,double deck){
+    double x=body.x,z=body.z,w=body.w,d=body.d;
+    double oldMetal=currentMetal,oldRough=currentRoughness;
+    Vec3 paint=color(body.color);
+    // Fine assembly-line seams just below the deck; the main case remains
+    // welded to the deck generated by renderChassis().
+    currentMetal=.52;currentRoughness=.29;
+    if(!l.spec.keys){
+      roundedPrism(x+7.5,deck-.96,z+7.5,w-15.,.36,1.15,.4,.08,
+                   shade(paint,.65));
+      roundedPrism(x+7.5,deck-.96,z+d-9.1,w-15.,.35,1.15,.4,.08,
+                   shade(paint,.60));
+    }else{
+      double keyL=1e100,keyR=-1e100,keyBack=1e100,keyFront=-1e100;
+      for(const Part &p:l.parts)if(p.type=="white_key"){
+        keyL=min(keyL,p.x);keyR=max(keyR,p.x+p.w);
+        keyBack=min(keyBack,p.z);keyFront=max(keyFront,p.z+p.d);
+      }
+      if(keyL<keyR){
+        // The black felt dust strip is recessed under the rear of the keys.
+        // Don't place solid housing across the playable portion of the keycaps.
+        currentMetal=.01;currentRoughness=.91;
+        roundedPrism(keyL-1.,KEYBED_DECK_HEIGHT-.85,keyBack+1.2,
+                     keyR-keyL+2.,.8,3.4,.38,.12,shade(color("black"),.61));
+        // Narrow reveal at the front where the keys emerge from the housing.
+        roundedPrism(keyL-1.,18.9,keyFront+1.2,
+                     keyR-keyL+2.,.45,1.5,.45,.10,shade(color("black"),.46));
+        currentMetal=.62;currentRoughness=.27;
+        // A satin extrusion joins the upper control deck and keybed rim.
+        roundedPrism(keyL-5.4,deck-4.36,keyBack-9.5,
+                     keyR-keyL+10.8,.35,2.0,.65,.11,shade(paint,.77));
+        // Tiny mechanical fasteners on the raised rear panel. Kept outside
+        // the keys and away from keyboard-specific control banks.
+        for(double px:{keyL+8.,keyR-8.}){
+          cylinder(px,deck+.02,keyBack-12.,1.30,.30,color("steel"),22);
+          cube(px-.75,deck+.33,keyBack-12.18,1.5,.11,.36,
+               shade(color("black"),.78));
+        }
+      }
+    }
+    currentMetal=oldMetal;currentRoughness=oldRough;
+  }
+
+  // MIDREATION_CGI_REALISM_V2: manufactured, procedural surface details.
+  // These additions are secondary to the existing recessed enclosure, rather
+  // than replacing the lip, tray, side cheeks, or user's key profile.
+  void cgiHousingDetails(const Layout &l,const Part &p,double deck){
+    const double x=p.x,z=p.z,w=p.w,d=p.d;
+    const Vec3 paint=color(p.color);
+    const double oldMetal=currentMetal,oldRough=currentRoughness;
+    // Very narrow seam at the front of the enclosure, not a decal.
+    currentMetal=.45;currentRoughness=.35;
+    roundedPrism(x+10,6.2,z+d-4.5,w-20,.50,1.05,.35,.09,shade(paint,.48));
+    // Dark anodized line around the outer edge of the raised rear panel.
+    if(l.spec.keys){
+      double left=1e100,right=-1e100,back=1e100,front=-1e100;
+      for(const Part &key:l.parts)if(key.type=="white_key"){
+        left=min(left,key.x);right=max(right,key.x+key.w);
+        back=min(back,key.z);front=max(front,key.z+key.d);
+      }
+      if(left<right){
+        const double span=right-left;
+        // Felt dust guard at the rear of the piano mechanism: below the key
+        // tops so it never looks like a solid strip lying across the keys.
+        currentMetal=0.;currentRoughness=.94;
+        roundedPrism(left-1.8,KEYBED_DECK_HEIGHT-.55,back+4.,
+                     span+3.6,.9,5.,.55,.22,shade(color("black"),.72));
+        // Thin satin-metal reveal directly behind the black-key hinge region.
+        // The original deck overhang continues to carry the structure.
+        currentMetal=.62;currentRoughness=.27;
+        roundedPrism(left-5.0,deck-4.45,back-6.2,
+                     span+10.0,.31,1.25,.42,.10,shade(paint,.77));
+        // Twin hinge fasteners are modeled in the raised enclosure.
+        for(double px:{left+12.,right-12.}){
+          cylinder(px,deck+.06,back-12.,1.15,.28,color("silver"),18);
+          cube(px-.7,deck+.35,back-12.14,1.4,.13,.28,color("dark"));
+        }
+        // Inlaid front keybed reveal, below the white-key fronts.
+        currentMetal=.02;currentRoughness=.87;
+        if(front+1.2<z+d-2.5){
+          roundedPrism(left-1.2,19.2,front+1.2,
+                       span+2.4,.48,1.0,.3,.10,shade(color("black"),.55));
+        }
+      }
+    }else{
+      // Independent controller bodies also receive a subtle assembly seam.
+      currentMetal=.46;currentRoughness=.36;
+      roundedPrism(x+10,deck-1.32,z+d-8,w-20,.36,1.2,.3,.08,
+                   shade(paint,.54));
+    }
+    currentMetal=oldMetal;currentRoughness=oldRough;
+  }
+
+  void cgiControlDetails(const Part &p,double deck,const string &profile){
+    const double x=p.x,z=p.z,w=p.w,d=p.d;
+    const double cx=x+w*.5,cz=z+d*.5;
+    const double oldMetal=currentMetal,oldRough=currentRoughness;
+    if(p.type=="knob"){
+      const double r=min(w,d)*.43;
+      // Knurling highlight / turned aluminum bezel within the knob footprint.
+      currentMetal=.88;currentRoughness=.21;
+      ring(cx,deck+1.33,cz,r*.99,min(min(w,d)*.475,r*1.08),
+           shade(color("silver"),.83),48);
+    }else if(p.type=="button"){
+      // A tiny recessed illuminated dot integrated into the molded button.
+      currentMetal=.02;currentRoughness=.28;
+      cylinder(x+w-3.1,deck+4.05,z+3.0,.65,.12,
+               shade(color(p.color),1.34),12);
+    }else if(p.type=="black_key"){
+      const double thick=profile=="waterfall"?7.0:8.6;
+      // Narrow specular line on the angled black-key top; a real mesh surface.
+      currentMetal=.01;currentRoughness=.38;
+      const double top=KEYBED_DECK_HEIGHT+4.6+thick+.64;
+      if(w>5 && d>15)
+        roundedPrism(x+1.8,top,z+3,w-3.6,.10,min(2.0,d*.13),.50,.03,
+                     shade(color("black"),1.70));
+    }
+    currentMetal=oldMetal;currentRoughness=oldRough;
+  }
+
   void build(const Layout &l){
     angle=l.spec.tilt*PI/180.;
-    constexpr double deck=19.;
+    const double deck = l.spec.keys ? CONTROL_DECK_HEIGHT : DECK_HEIGHT;
     string keyProfile=l.spec.keyAction;
     if(keyProfile=="synth"||keyProfile=="unweighted"||keyProfile=="synth-action"||keyProfile=="waterfall")keyProfile="waterfall";
     else if(keyProfile=="weighted"||keyProfile=="hammer"||keyProfile=="hammer-action")keyProfile="weighted";
@@ -632,24 +916,25 @@ struct Mesh {
     for(const Part&p:l.parts){
       auto c=color(p.color);double x=p.x,z=p.z,w=p.w,d=p.d;
       double cx=x+w*.5,cz=z+d*.5;
+      // Keep per-object material identity through OBJ export. These values
+      // are not guessed from color: metal/rubber/ivory have different surfaces.
+      currentMetal=.10;currentRoughness=.38;
+      if(p.type=="body") {currentMetal=.54;currentRoughness=.28;}
+      else if(p.type=="white_key") {currentMetal=.01;currentRoughness=.24;}
+      else if(p.type=="black_key") {currentMetal=.01;currentRoughness=.36;}
+      else if(p.type=="knob" || p.type=="switch" || p.type=="footswitch")
+        {currentMetal=.77;currentRoughness=.24;}
+      else if(p.type=="fader" || p.type=="port")
+        {currentMetal=.63;currentRoughness=.30;}
+      else if(p.type=="pad") {currentMetal=.005;currentRoughness=.71;}
+      else if(p.type=="display" || p.type=="xypad")
+        {currentMetal=.04;currentRoughness=.12;}
+      else if(p.type=="button" || p.type=="clicky" || p.type=="wheel")
+        {currentMetal=.025;currentRoughness=.40;}
       if(p.type=="body"){
-        // Inset brushed enclosure with a chamfered outer silhouette, side cheek
-        // materials, fastener heads, front bottom rail, and functional seam lines.
-        roundedPrism(x,0,z,w,16.8,d,12,3.0,shade(c,.82));
-        roundedPrism(x+2,14.9,z+2,w-4,4.1,d-4,10,1.0,shade(c,1.12));
-        Vec3 side=l.spec.panels=="wood"?color("wood"):shade(c,.72);
-        roundedPrism(x+1.8,3.4,z+14,5.3,10.7,d-28,2.2,1.0,side);
-        roundedPrism(x+w-7.1,3.4,z+14,5.3,10.7,d-28,2.2,1.0,side);
-        roundedPrism(x+8,3.7,z+d-5.1,w-16,6.4,3.1,1.0,.8,shade(c,.59));
-        for(double px:{x+9,x+w-9})for(double pz:{z+10,z+d-10}){
-          cylinder(px,19.0,pz,1.8,.35,color("steel"),16);
-          cube(px-1,19.36,pz-.20,2,.16,.4,color("dark"));
-        }
-        // Vent slits along the rear edge, with light metal dividers.
-        for(int i=0;i<7&&w>300;i++){
-          double px=x+w*.39+i*8.5;
-          roundedPrism(px,19.05,z+5,4.2,.17,12,1,.08,shade(c,.48));
-        }
+        renderChassis(l,p,c,deck);
+        cgiHousingDetails(l,p,deck);
+        photorealDetails(l,p,deck);
       }else if(p.type=="knob"){
         double r=min(w,d)*.43,h=max(7.,p.h);
         cylinder(cx,deck,cz,r,1.15,shade(color("steel"),.78),36);
@@ -741,10 +1026,26 @@ struct Mesh {
         rod(a,b,1.8,1.2,shade(color("silver"),1.03),18);
         cylinder(b.x,deck+15,b.z,2.6,2.9,shade(color("steel"),.93),20);
       }else if(p.type=="wheel"){
-        roundedPrism(x,deck-.12,z,w,1.0,d,3.4,.38,shade(color("dark"),.85));
-        double r=min(w*.33,d*.40);
-        roundedPrism(cx-6,deck+.9,cz-r*.82,12,.25,r*1.64,2,.1,color("black"));
-        verticalWheel(cx,deck+1.0,cz,r,8.8,shade(c,.97));
+        // MIDREATION_WHEEL_HOUSING_V1 (continued): a recessed wheel, not a
+        // vertical cylinder balanced on the high control panel.
+        const bool keyboard=l.spec.keys>0;
+        const double wellTop=keyboard?32.5:deck;
+        const double r=min(w*.33,d*.40);
+        // Black well with a thin satin-metal perimeter and a deep central
+        // opening. On keyboards it is flush with the lower side pod.
+        roundedPrism(x-.65,wellTop-.17,z-.5,w+1.3,1.05,d+1.,3.5,.38,
+                     shade(color("steel"),.44));
+        roundedPrism(x+1.15,wellTop+.86,z+1.0,w-2.3,.19,d-2.0,2.65,.07,
+                     shade(color("black"),.49));
+        roundedPrism(cx-5.6,wellTop+1.02,cz-r*.84,11.2,.16,r*1.68,1.8,.05,
+                     shade(color("black"),.34));
+        // Hide the lower wheel arc inside the case. Only the knurled upper
+        // part rises through the bezel; use dark molded rubber, not neon discs.
+        const double wheelCenter=keyboard?wellTop-3.0:deck+1.0;
+        verticalWheel(cx,wheelCenter,cz,r,8.8,shade(color("black"),1.35));
+        // Small color-coded marker distinguishes pitch and modulation wheels.
+        rod({cx-2.7,wheelCenter+r+.22,cz},
+            {cx+2.7,wheelCenter+r+.22,cz},.33,.33,shade(c,.94),8);
       }else if(p.type=="white_key")keyWhite(p,keyProfile);
       else if(p.type=="black_key")keyBlack(p,keyProfile);
       else if(p.type=="led"){
@@ -769,6 +1070,7 @@ struct Mesh {
         roundedPrism(x,deck,z,w,1.2,d,2,.5,shade(color("steel"),.75));
         roundedPrism(x+3,deck+1.1,z+3,w-6,.4,d-6,1,.12,color("black"));
       }else roundedPrism(x,deck,z,w,p.h,d,1.5,.5,c);
+      cgiControlDetails(p,deck,keyProfile);
       ++index;
     }
   }
@@ -778,7 +1080,7 @@ struct Mesh {
     o<<fixed<<setprecision(4);
     double ca=cos(angle),sa=sin(angle);
     for(auto v:vertices){double yy=v.p.y*ca+v.p.z*sa,zz=-v.p.y*sa+v.p.z*ca;
-      o<<"v "<<v.p.x<<' '<<yy<<' '<<zz<<' '<<v.c.x<<' '<<v.c.y<<' '<<v.c.z<<'\n';
+      o<<"v "<<v.p.x<<' '<<yy<<' '<<zz<<' '<<v.c.x<<' '<<v.c.y<<' '<<v.c.z<<" #mr "<<v.metal<<' '<<v.roughness<<'\n';
     }
     for(size_t i=0;i<vertices.size();i+=3)o<<"f "<<i+1<<' '<<i+2<<' '<<i+3<<'\n';
   }
@@ -844,6 +1146,8 @@ void json(const Layout &l,const Mesh &mesh,const string &path){
   else profile="semi-weighted";
   o<<",\"material\":\""<<jsonEscape(l.spec.material)<<"\",\"bodyColor\":\""<<jsonEscape(l.spec.color)<<"\",\"variant\":"<<l.id;
   o<<",\"keyAction\":\""<<jsonEscape(l.spec.keyAction)<<"\",\"keycapProfile\":\""<<profile<<"\"";
+  o<<",\"cgi\":{\"cornerRadius\":"<<l.spec.caseRadius
+   <<",\"keybedOverhang\":"<<l.spec.keybedOverhang<<"}";
   o<<",\"triangles\":"<<mesh.faceCount<<",\"parts\":[";
   for(size_t i=0;i<l.parts.size();i++){
     if(i)o<<',';
